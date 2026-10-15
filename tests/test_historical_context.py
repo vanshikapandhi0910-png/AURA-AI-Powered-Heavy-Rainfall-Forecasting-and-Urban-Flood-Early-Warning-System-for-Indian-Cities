@@ -341,7 +341,6 @@ class HistoricalFloodContextTests(unittest.TestCase):
         self.assertEqual(result["alert_level"], "GREEN")
         self.assertEqual(ca["alert_level"], "GREEN")
         self.assertFalse(result["travel_alarm"]["should_alarm"])
-
     def test_alert_level_is_yellow_when_raining_with_no_clogging_records(self):
         """Rain with no chronic drainage risk should yield YELLOW, not RED."""
         result = get_historical_flood_context(

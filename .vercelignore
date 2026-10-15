@@ -1,0 +1,14 @@
+# Ignore cache and local virtual envs
+.venv/
+__pycache__/
+.pytest_cache/
+tests/
+
+# Ignore heavy local data files and model checkpoints
+data/
+*.pt
+*.pkl
+*.h5
+*.onnx
+*.csv
+*.parquet
