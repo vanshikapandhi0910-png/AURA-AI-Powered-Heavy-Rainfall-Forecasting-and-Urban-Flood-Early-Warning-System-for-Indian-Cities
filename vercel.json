@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "main.py" },
+    { "src": "/manifest.json", "dest": "main.py" },
+    { "src": "/(.*\\.(html|css|js|json|ico|png|svg|webp))", "dest": "frontend/$1" },
+    { "src": "/(.*)", "dest": "frontend/index.html" }
+  ]
+}

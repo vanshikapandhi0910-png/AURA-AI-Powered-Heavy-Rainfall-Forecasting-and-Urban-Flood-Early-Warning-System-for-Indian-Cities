@@ -1,5 +1,26 @@
+# Virtual environments
 .venv/
+venv/
+env/
+
+# Python bytecode
 __pycache__/
 *.py[cod]
+*.pyo
+
+# Testing
 .pytest_cache/
-data/community_reports.sqlite3*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQLite databases
+*.sqlite3
+
+# Vercel
+.vercel/

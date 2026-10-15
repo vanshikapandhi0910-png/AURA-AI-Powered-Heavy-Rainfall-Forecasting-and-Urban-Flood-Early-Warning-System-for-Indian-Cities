@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -9,7 +10,10 @@ from pathlib import Path
 from typing import Generator
 
 ROOT = Path(__file__).resolve().parents[1]
-DATABASE = ROOT / "data" / "community_reports.sqlite3"
+if os.environ.get("VERCEL"):
+    DATABASE = Path("/tmp") / "aura-community-reports.sqlite3"
+else:
+    DATABASE = ROOT / "data" / "community_reports.sqlite3"
 
 
 @contextmanager

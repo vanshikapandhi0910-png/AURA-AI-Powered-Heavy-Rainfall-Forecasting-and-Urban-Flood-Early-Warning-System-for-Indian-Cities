@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import difflib
 import json
 import logging
 import math
@@ -13,29 +14,20 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import geopandas as gpd
 import numpy as np
-import pandas as pd
-import rasterio
-from rasterio.transform import from_origin
-from rasterio.warp import transform as transform_coordinates
-from shapely.geometry import box
-from sklearn.ensemble import RandomForestClassifier
+import numpy as np
 
-import difflib
 from backend.community import get_experiences
 from backend.historical import get_historical_flood_context
 from backend.india_dataset import INDIA_FLOOD_DATABASE, _norm, find_matching_localities, get_all_locations_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
-TERRAIN_FILE = DATA / "demo_terrain.tif"
-CRS = "EPSG:32643"
 CELL_METRES = 10
 GRID_WIDTH = 800
 GRID_HEIGHT = 800
 GRID_CENTER = (31.6446, 74.8725)
+EARTH_RADIUS_METRES = 6_371_008.8
 RISK_CLASSES = ("Low", "Moderate", "High")
 CITY_CENTERS = {
     "amritsar": (31.6340, 74.8723),
@@ -125,143 +117,57 @@ _IMD_CACHE: dict[str, tuple[float, dict]] = {}
 _LOGGER = logging.getLogger(__name__)
 
 
-def _make_simulated_terrain() -> None:
-    """Create a clearly labeled synthetic GeoTIFF when real terrain is absent."""
-    DATA.mkdir(parents=True, exist_ok=True)
-    if TERRAIN_FILE.exists():
-        return
+def _to_local_xy(longitude, latitude) -> tuple[np.ndarray, np.ndarray]:
+    center_latitude, center_longitude = GRID_CENTER
+    x = (
+        np.deg2rad(np.asarray(longitude, dtype=float) - center_longitude)
+        * EARTH_RADIUS_METRES
+        * math.cos(math.radians(center_latitude))
+    )
+    y = np.deg2rad(np.asarray(latitude, dtype=float) - center_latitude) * EARTH_RADIUS_METRES
+    return x, y
+
+
+def _to_geographic(x, y) -> tuple[np.ndarray, np.ndarray]:
+    center_latitude, center_longitude = GRID_CENTER
+    longitude = (
+        center_longitude
+        + np.rad2deg(np.asarray(x, dtype=float))
+        / (EARTH_RADIUS_METRES * math.cos(math.radians(center_latitude)))
+    )
+    latitude = center_latitude + np.rad2deg(np.asarray(y, dtype=float) / EARTH_RADIUS_METRES)
+    return longitude, latitude
+
+
+def _build_model() -> dict[str, np.ndarray]:
+    """Build the synthetic pilot terrain and cell features without geospatial binaries."""
     size = GRID_WIDTH // CELL_METRES
-    x = np.linspace(-1, 1, size, dtype=np.float32)
-    y = np.linspace(-1, 1, size, dtype=np.float32)
-    xx, yy = np.meshgrid(x, y)
-    bowl = np.exp(-((xx + 0.28) ** 2 / 0.14 + (yy - 0.12) ** 2 / 0.22))
-    terrain = (231.0 + 1.9 * yy + 0.8 * xx - 2.5 * bowl).astype(np.float32)
-    # UTM coordinates for the demo-area raster; the elevation values are synthetic.
-    center_x, center_y = gpd.GeoSeries.from_xy(
-        [GRID_CENTER[1]], [GRID_CENTER[0]], crs="EPSG:4326"
-    ).to_crs(CRS).iloc[0].coords[0]
-    transform = from_origin(
-        center_x - GRID_WIDTH / 2, center_y + GRID_HEIGHT / 2, CELL_METRES, CELL_METRES
-    )
-    with rasterio.open(
-        TERRAIN_FILE,
-        "w",
-        driver="GTiff",
-        height=size,
-        width=size,
-        count=1,
-        dtype="float32",
-        crs=CRS,
-        transform=transform,
-        compress="deflate",
-        tags={
-            "source": "SIMULATED demo terrain; replace with a georeferenced SRTM GeoTIFF",
-            "units": "metres",
-        },
-    ) as dataset:
-        dataset.write(terrain, 1)
-        dataset.update_tags(
-            source="SIMULATED demo terrain; replace with a georeferenced SRTM GeoTIFF",
-            units="metres",
-        )
-
-
-def _build_model():
-    """Create 10 m cells, sample terrain, and fit a small synthetic training model."""
-    _make_simulated_terrain()
-    center = gpd.GeoSeries.from_xy(
-        [GRID_CENTER[1]], [GRID_CENTER[0]], crs="EPSG:4326"
-    ).to_crs(CRS).iloc[0].coords[0]
-    center_x, center_y = center
-    min_x = center_x - GRID_WIDTH / 2
-    max_y = center_y + GRID_HEIGHT / 2
-    columns = np.arange(GRID_WIDTH // CELL_METRES)
-    rows = np.arange(GRID_HEIGHT // CELL_METRES)
-    xs = min_x + (columns + 0.5) * CELL_METRES
-    ys = max_y - (rows + 0.5) * CELL_METRES
+    columns = np.arange(size)
+    rows = np.arange(size)
+    xs = -GRID_WIDTH / 2 + (columns + 0.5) * CELL_METRES
+    ys = GRID_HEIGHT / 2 - (rows + 0.5) * CELL_METRES
     xx, yy = np.meshgrid(xs, ys)
-    cells = gpd.GeoDataFrame(
-        {"x": xx.ravel(), "y": yy.ravel()},
-        geometry=[
-            box(
-                x - CELL_METRES / 2,
-                y - CELL_METRES / 2,
-                x + CELL_METRES / 2,
-                y + CELL_METRES / 2,
-            )
-            for y in ys
-            for x in xs
-        ],
-        crs=CRS,
-    )
-
-    with rasterio.open(TERRAIN_FILE) as dem:
-        if dem.crs is None:
-            raise ValueError("The terrain GeoTIFF must have a valid coordinate reference system.")
-        if dem.crs.to_string() != CRS:
-            sample_x, sample_y = transform_coordinates(
-                CRS, dem.crs, cells["x"].tolist(), cells["y"].tolist()
-            )
-        else:
-            sample_x, sample_y = cells["x"].tolist(), cells["y"].tolist()
-        sampled = np.ma.vstack(list(dem.sample(zip(sample_x, sample_y), masked=True)))
-        elevations = sampled.filled(np.nan)[:, 0].astype(np.float32)
-        if not np.isfinite(elevations).all():
-            raise ValueError(
-                "The terrain GeoTIFF must contain valid elevation data across the full Ranjit Avenue demo grid."
-            )
-        raster = dem.read(1, masked=True).filled(np.nan)
-        pixel_x = abs(dem.transform.a)
-        pixel_y = abs(dem.transform.e)
-        gradient_y, gradient_x = np.gradient(raster, pixel_y, pixel_x)
-        slopes = np.hypot(gradient_x, gradient_y)
-        slope_values = np.fromiter(
-            (
-                slopes[min(max(int((dem.transform.f - y) / pixel_y), 0), slopes.shape[0] - 1),
-                        min(max(int((x - dem.transform.c) / pixel_x), 0), slopes.shape[1] - 1)]
-                for x, y in zip(sample_x, sample_y)
-            ),
-            dtype=np.float32,
-        )
-
+    normalized_x = np.linspace(-1, 1, size, dtype=np.float32)
+    normalized_y = np.linspace(-1, 1, size, dtype=np.float32)
+    terrain_x, terrain_y = np.meshgrid(normalized_x, normalized_y)
+    bowl = np.exp(-((terrain_x + 0.28) ** 2 / 0.14 + (terrain_y - 0.12) ** 2 / 0.22))
+    terrain = (231.0 + 1.9 * terrain_y + 0.8 * terrain_x - 2.5 * bowl).astype(np.float32)
+    gradient_y, gradient_x = np.gradient(terrain, CELL_METRES, CELL_METRES)
+    slope = np.hypot(gradient_x, gradient_y)
+    elevations = terrain.ravel()
     low_reference = float(np.percentile(elevations, 20))
     basin_depth = np.maximum(0.0, low_reference - elevations)
-    capacity_m3 = (0.015 + basin_depth) * CELL_METRES**2
-    cells["elevation_m"] = elevations
-    cells["slope"] = slope_values
-    cells["basin_capacity_m3"] = capacity_m3
-
-    # Synthetic training labels encode a transparent heuristic, not verified flood events.
-    rng = np.random.default_rng(42)
-    count = 6000
-    training = np.column_stack(
-        [
-            rng.uniform(228, 235, count),
-            rng.uniform(0, 0.2, count),
-            rng.uniform(0, 4, count),
-            rng.uniform(0, 60, count),
-            rng.uniform(0.05, 12, count),
-            rng.uniform(0, 1, count),
-        ]
-    )
-    risk_index = (
-        0.26 * np.maximum(0, 232.0 - training[:, 0])
-        + 0.48 * training[:, 2]
-        + 0.055 * training[:, 3]
-        + 0.65 / np.maximum(training[:, 4], 0.15)
-        + 1.6 * training[:, 5]
-        - 0.8 * training[:, 1]
-    )
-    labels = np.select([risk_index < 1.4, risk_index < 3.2], [0, 1], default=2)
-    model = RandomForestClassifier(
-        n_estimators=48, max_depth=9, min_samples_leaf=3, random_state=42, n_jobs=1
-    )
-    model.fit(training, labels)
-    return cells, model, {"x": center_x, "y": center_y, "bounds": (min_x, max_y - GRID_HEIGHT, min_x + GRID_WIDTH, max_y)}
+    return {
+        "x": xx.ravel(),
+        "y": yy.ravel(),
+        "elevation_m": elevations,
+        "slope": slope.ravel(),
+        "basin_capacity_m3": (0.015 + basin_depth) * CELL_METRES**2,
+    }
 
 
 @lru_cache(maxsize=1)
-def _model_bundle():
+def _model_bundle() -> dict[str, np.ndarray]:
     return _build_model()
 
 
@@ -383,16 +289,16 @@ def _simulated_rainfall() -> dict:
     }
 
 
-def _predict(cells: gpd.GeoDataFrame, model: RandomForestClassifier, rain: dict):
+def _predict(cells: dict[str, np.ndarray], rain: dict):
     rain_values = np.asarray(rain["rain_mm"], dtype=float)
     rate = float(np.max(rain_values))
     mean_rate = float(np.mean(rain_values))
     runoff = 0.85
     inflow_m3_hour = mean_rate / 1000 * CELL_METRES**2 * runoff
     time_to_threshold = np.clip(
-        cells["basin_capacity_m3"].to_numpy() / max(inflow_m3_hour, 0.02), 0.1, 24
+        cells["basin_capacity_m3"] / max(inflow_m3_hour, 0.02), 0.1, 24
     )
-    hotspot_factor = np.zeros(len(cells), dtype=float)
+    hotspot_factor = np.zeros(len(cells["x"]), dtype=float)
     hot_path = DATA / "waterlogging_spots.csv"
     if hot_path.exists():
         with hot_path.open(newline="", encoding="utf-8-sig") as stream:
@@ -400,35 +306,42 @@ def _predict(cells: gpd.GeoDataFrame, model: RandomForestClassifier, rain: dict)
                 if item.get("data_status") != "SIMULATED":
                     continue
                 lat, lon = float(item["latitude"]), float(item["longitude"])
-                gx, gy = transform_coordinates("EPSG:4326", CRS, [lon], [lat])
-                distance = np.hypot(cells["x"].to_numpy() - gx[0], cells["y"].to_numpy() - gy[0])
+                gx, gy = _to_local_xy(lon, lat)
+                distance = np.hypot(cells["x"] - gx.item(), cells["y"] - gy.item())
                 hotspot_factor = np.maximum(hotspot_factor, np.exp(-distance / 65))
 
-    features = np.column_stack(
-        [
-            cells["elevation_m"].to_numpy(),
-            cells["slope"].to_numpy(),
-            cells["basin_capacity_m3"].to_numpy(),
-            np.full(len(cells), rate),
-            time_to_threshold,
-            hotspot_factor,
-        ]
+    risk_score = (
+        0.26 * np.maximum(0, 232.0 - cells["elevation_m"])
+        + 0.48 * cells["basin_capacity_m3"]
+        + 0.055 * rate
+        + 0.65 / np.maximum(time_to_threshold, 0.15)
+        + 1.6 * hotspot_factor
+        - 0.8 * cells["slope"]
     )
-    probabilities = model.predict_proba(features)
+    predicted = np.select([risk_score < 1.4, risk_score < 3.2], [0, 1], default=2)
     # Historical sample hotspots only amplify heavy-rain demo conditions; sample locations are unverified.
     active_hotspots = (hotspot_factor >= 0.7) & (rate >= 8.0)
+    predicted[active_hotspots] = 2
+
     # Run 100 perturbed rainfall scenarios to bound risk-class uncertainty.
     rng = np.random.default_rng(104)
     factors = rng.uniform(0.65, 1.45, 100)
-    scenarios = np.tile(features, (100, 1))
-    scenarios[:, 3] *= np.repeat(factors, len(cells))
-    scenarios[:, 4] /= np.repeat(factors, len(cells))
-    scenario_predictions = model.predict(scenarios).reshape(100, len(cells))
+    scenario_scores = (
+        risk_score[np.newaxis, :]
+        + 0.055 * rate * (factors[:, np.newaxis] - 1)
+        + 0.65 / np.maximum(time_to_threshold[np.newaxis, :] / factors[:, np.newaxis], 0.15)
+        - 0.65 / np.maximum(time_to_threshold[np.newaxis, :], 0.15)
+    )
+    scenario_predictions = np.select(
+        [scenario_scores < 1.4, scenario_scores < 3.2], [0, 1], default=2
+    )
     scenario_predictions[:, active_hotspots] = 2
     low, high = np.quantile(scenario_predictions, [0.1, 0.9], axis=0)
-    predicted = np.argmax(probabilities, axis=1)
-    predicted[active_hotspots] = 2
-    confidence = probabilities[np.arange(len(cells)), predicted] * 100
+    confidence = np.clip(
+        55 + np.min(np.abs(risk_score[:, np.newaxis] - [1.4, 3.2]), axis=1) * 15,
+        55,
+        95,
+    )
     return predicted, confidence, low, high, time_to_threshold, rate
 
 
@@ -442,66 +355,71 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
     cached = _RISK_GRID_CACHE.get(key)
     if cached and now - cached[0] < _FORECAST_TTL:
         return cached[1]
-    x, y = transform_coordinates("EPSG:4326", CRS, [lon], [lat])
-    center_x, center_y = transform_coordinates(
-        "EPSG:4326", CRS, [GRID_CENTER[1]], [GRID_CENTER[0]]
-    )
-    min_x = center_x[0] - GRID_WIDTH / 2
-    max_x = center_x[0] + GRID_WIDTH / 2
-    min_y = center_y[0] - GRID_HEIGHT / 2
-    max_y = center_y[0] + GRID_HEIGHT / 2
-    if not (min_x <= x[0] <= max_x and min_y <= y[0] <= max_y):
+    x, y = _to_local_xy(lon, lat)
+    if not (
+        -GRID_WIDTH / 2 <= x.item() <= GRID_WIDTH / 2
+        and -GRID_HEIGHT / 2 <= y.item() <= GRID_HEIGHT / 2
+    ):
         return {
             "type": "FeatureCollection",
             "features": [],
             "data_status": "NO LOCAL TERRAIN COVERAGE",
-            "method": "The terrain-backed pilot grid covers Ranjit Avenue, Amritsar only.",
+            "method": "The synthetic pilot grid covers Ranjit Avenue, Amritsar only.",
             "forecast_source": "No location-specific risk grid available",
         }
-    cells, model, _ = _model_bundle()
+    cells = _model_bundle()
     rain = _forecast(lat, lon)
-    predicted, confidence, low, high, _, rate = _predict(cells, model, rain)
-    cells = cells.copy()
-    cells["risk_index"] = predicted
-    cells["confidence_pct"] = confidence
-    cells["range_low"] = low
-    cells["range_high"] = high
-    # Display a 50 m summary grid to keep the mobile GeoJSON payload compact.
-    cells["gx"] = np.floor((cells["x"] - (cells["x"].min() - 5)) / 50).astype(int)
-    cells["gy"] = np.floor((cells["y"].max() + 5 - cells["y"]) / 50).astype(int)
-    grouped = cells.dissolve(by=["gx", "gy"], as_index=False, aggfunc={
-        "risk_index": lambda values: int(np.rint(np.mean(values))),
-        "confidence_pct": "mean",
-        "range_low": "mean",
-        "range_high": "mean",
-    })
-    geographic = grouped.to_crs("EPSG:4326")
+    predicted, confidence, low, high, _, rate = _predict(cells, rain)
     features = []
-    for row in geographic.itertuples():
-        index = int(row.risk_index)
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": json.loads(gpd.GeoSeries([row.geometry], crs="EPSG:4326").to_json())["features"][0]["geometry"],
-                "properties": {
-                    "risk": _class_name(index),
-                    "risk_index": index,
-                    "confidence_pct": round(float(row.confidence_pct), 1),
-                    "class_range": [
-                        _class_name(max(0, min(2, int(math.floor(row.range_low))))),
-                        _class_name(max(0, min(2, int(math.ceil(row.range_high))))),
-                    ],
-                    "rain_intensity_mm_h": round(rate, 1),
-                    "grid_resolution_m": CELL_METRES,
-                    "display_cell_m": 50,
-                },
-            }
-        )
+    grid_size = GRID_WIDTH // CELL_METRES
+    summary_cells = 50 // CELL_METRES
+    risk_grid = predicted.reshape(grid_size, grid_size)
+    confidence_grid = confidence.reshape(grid_size, grid_size)
+    low_grid = low.reshape(grid_size, grid_size)
+    high_grid = high.reshape(grid_size, grid_size)
+    for gy in range(GRID_HEIGHT // 50):
+        for gx in range(GRID_WIDTH // 50):
+            row_slice = slice(gy * summary_cells, (gy + 1) * summary_cells)
+            column_slice = slice(gx * summary_cells, (gx + 1) * summary_cells)
+            cell_slice = np.s_[row_slice, column_slice]
+            index = int(np.rint(np.mean(risk_grid[cell_slice])))
+            average_confidence = float(np.mean(confidence_grid[cell_slice]))
+            range_low = float(np.mean(low_grid[cell_slice]))
+            range_high = float(np.mean(high_grid[cell_slice]))
+            min_x = -GRID_WIDTH / 2 + gx * 50
+            max_y = GRID_HEIGHT / 2 - gy * 50
+            polygon_x = [min_x, min_x + 50, min_x + 50, min_x, min_x]
+            polygon_y = [max_y - 50, max_y - 50, max_y, max_y, max_y - 50]
+            longitudes, latitudes = _to_geographic(polygon_x, polygon_y)
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [float(point_lon), float(point_lat)]
+                            for point_lon, point_lat in zip(longitudes, latitudes)
+                        ]],
+                    },
+                    "properties": {
+                        "risk": _class_name(index),
+                        "risk_index": index,
+                        "confidence_pct": round(average_confidence, 1),
+                        "class_range": [
+                            _class_name(max(0, min(2, int(math.floor(range_low))))),
+                            _class_name(max(0, min(2, int(math.ceil(range_high))))),
+                        ],
+                        "rain_intensity_mm_h": round(rate, 1),
+                        "grid_resolution_m": CELL_METRES,
+                        "display_cell_m": 50,
+                    },
+                }
+            )
     result = {
         "type": "FeatureCollection",
         "features": features,
         "data_status": _terrain_data_status(),
-        "method": "10 m internal cells; 50 m summaries for lightweight display",
+        "method": "Synthetic terrain and transparent heuristic on 10 m cells; 50 m summaries",
         "forecast_source": rain["source"],
         "location": {"lat": lat, "lon": lon},
     }
@@ -510,15 +428,7 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
 
 
 def _terrain_data_status() -> str:
-    if not TERRAIN_FILE.exists():
-        return "SIMULATED TERRAIN"
-    with rasterio.open(TERRAIN_FILE) as dataset:
-        source = dataset.tags().get("source", "")
-    if source.upper().startswith("SIMULATED"):
-        return "SIMULATED TERRAIN"
-    if source:
-        return f"Local terrain GeoTIFF · source: {source}"
-    return "UNVERIFIED LOCAL TERRAIN · GeoTIFF has no source metadata"
+    return "SIMULATED TERRAIN · generated in memory; not measured elevation"
 
 
 def _imd_city_observation(city: str | None) -> dict:
@@ -769,34 +679,16 @@ def get_alert(location: dict) -> dict:
     clogging_info = historical_context.get("clogging_assessment", {})
     clog_status = clogging_info.get("status", "CLEAR")
 
-    point_x, point_y = transform_coordinates("EPSG:4326", CRS, [lon], [lat])
-    center_x, center_y = transform_coordinates(
-        "EPSG:4326", CRS, [GRID_CENTER[1]], [GRID_CENTER[0]]
-    )
+    point_x, point_y = _to_local_xy(lon, lat)
     inside_pilot = (
-        abs(point_x[0] - center_x[0]) <= GRID_WIDTH / 2
-        and abs(point_y[0] - center_y[0]) <= GRID_HEIGHT / 2
+        abs(point_x.item()) <= GRID_WIDTH / 2
+        and abs(point_y.item()) <= GRID_HEIGHT / 2
     )
     if inside_pilot and not unresolved:
-        cells, model, _ = _model_bundle()
-        predicted, confidence, low, high, time_to_threshold, _ = _predict(cells, model, rain)
-        x_list, y_list = transform_coordinates(
-            CRS, "EPSG:4326", cells["x"].tolist(), cells["y"].tolist()
-        )
-        distances = (
-            (np.asarray(x_list) - lon) ** 2 * np.cos(np.deg2rad(lat)) ** 2
-            + (np.asarray(y_list) - lat) ** 2
-        )
-        inside = (
-            (
-                cells["x"].to_numpy()
-                >= center_x[0] - GRID_WIDTH / 2
-            )
-            & (cells["x"].to_numpy() <= center_x[0] + GRID_WIDTH / 2)
-            & (cells["y"].to_numpy() >= center_y[0] - GRID_HEIGHT / 2)
-            & (cells["y"].to_numpy() <= center_y[0] + GRID_HEIGHT / 2)
-        )
-        selected = int(np.argmin(np.where(inside, distances, np.inf)))
+        cells = _model_bundle()
+        predicted, confidence, low, high, time_to_threshold, _ = _predict(cells, rain)
+        distances = (cells["x"] - point_x.item()) ** 2 + (cells["y"] - point_y.item()) ** 2
+        selected = int(np.argmin(distances))
         index = int(predicted[selected])
         risk_confidence = float(confidence[selected])
         class_low = max(0, int(math.floor(low[selected])))
@@ -871,19 +763,22 @@ def get_alert(location: dict) -> dict:
 
 def get_evaluation() -> dict:
     path = DATA / "evaluation_sample.csv"
-    frame = pd.read_csv(path)
+    with path.open(newline="", encoding="utf-8-sig") as stream:
+        events = list(csv.DictReader(stream))
+    correct = sum(event["predicted_risk"] == event["observed_risk"] for event in events)
     return {
         "data_status": "SIMULATED evaluation examples; not measured model performance",
         "metrics": {
-            "events": int(len(frame)),
-            "accuracy_pct": round(float((frame["predicted_risk"] == frame["observed_risk"]).mean() * 100), 1),
+            "events": len(events),
+            "accuracy_pct": round(correct / len(events) * 100, 1) if events else 0.0,
         },
-        "events": frame.to_dict(orient="records"),
+        "events": events,
         "limitations": [
             "All included rainfall, terrain, hotspot and event samples are calibrated demo data, not official or independently validated observations.",
+            "The Amritsar pilot grid uses a transparent synthetic heuristic; it is not a trained or validated flood-prediction model.",
             "Open-Meteo provides numerical weather forecasts, not IMD warnings; an official IMD warning feed is not integrated.",
             "Instantaneous temperature is Open-Meteo model data, not an IMD station observation. IMD's city report supplies today's observed high and low, not a live instant temperature; station observations may be delayed.",
-            "The 10 m computational grid is not proof of 10 m terrain accuracy. The bundled terrain is synthetic; no real SRTM elevation file is included.",
+            "The 10 m computational grid is not proof of 10 m terrain accuracy. Terrain is generated synthetically in memory; no real SRTM elevation file is used.",
             "Drainage capacity, land cover, sewer condition, road closures and municipal response are synthesized from documented disaster records and resident reports.",
             "Nationwide coverage spans all 28 States and 8 Union Territories with historical flood context and chronic drainage chokepoints.",
             "Do not use this prototype for travel, evacuation or emergency decisions. Follow IMD, NDMA and local authorities.",
