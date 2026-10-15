@@ -1,0 +1,5 @@
+event_id,location,observed_risk,predicted_risk,event_status
+demo-2025-01,Ranjit Avenue,High,High,SIMULATED
+demo-2025-02,Market road underpass,Moderate,High,SIMULATED
+demo-2025-03,Bus stand junction,High,Moderate,SIMULATED
+demo-2025-04,Amritsar city centre,Low,Low,SIMULATED

@@ -1,0 +1,51 @@
+id,name,city,state,latitude,longitude,kind,data_status,experience
+spot-ap-1,Benz Circle Underpass,Vijayawada,Andhra Pradesh,16.5062,80.6480,Chokepoint,DOCUMENTED,Submerges up to 4 feet in heavy showers; backflow from Bandar canal
+spot-ap-2,Gnanapuram Railway Subway,Visakhapatnam,Andhra Pradesh,17.7231,83.3013,Waterlogging report,DOCUMENTED,Subway rapidly fills with 3 feet water during coastal downpours
+spot-ar-1,Bank Tinali Highway Culvert,Itanagar,Arunachal Pradesh,27.0844,93.6053,Chokepoint,DOCUMENTED,Hillside mud and gravel choke culvert leading to total vehicular blockage
+spot-as-1,Rukminigaon GS Road Underpass,Guwahati,Assam,26.1445,91.7362,Waterlogging report,DOCUMENTED,Bharalu river backflow causes chest-deep water; boats deployed in monsoon
+spot-as-2,Rangirkhari Junction,Silchar,Assam,24.8333,92.7789,Chokepoint,DOCUMENTED,Barak river rise closes sluice gates causing roads to turn into streams
+spot-br-1,Rajendra Nagar Road No. 10,Patna,Bihar,25.5941,85.1376,Waterlogging report,DOCUMENTED,Saucer depression below Ganga level; water stagnates for days without high-power pumps
+spot-br-2,Maripur Railway Underpass,Muzaffarpur,Bihar,26.1226,85.3906,Chokepoint,DOCUMENTED,Burhi Gandak backwater creates deep waterlogging trapping vehicles
+spot-cg-1,Pandri Cloth Market Subway,Raipur,Chhattisgarh,21.2514,81.6296,Waterlogging report,DOCUMENTED,Low-lying commercial area collects stormwater during sudden downpours
+spot-ga-1,18th June Road & Mala,Panaji,Goa,15.4989,73.8278,Waterlogging report,DOCUMENTED,Tidal sea lock on Mandovi estuary floods roads during high tide rains
+spot-gj-1,Akhbarnagar Underpass,Ahmedabad,Gujarat,23.0620,72.5654,Chokepoint,DOCUMENTED,Closed immediately by municipal sensors during downpour due to 6-8 ft water accumulation
+spot-gj-2,Kala Ghoda Bridge Low Approach,Vadodara,Gujarat,22.3107,73.1812,Waterlogging report,DOCUMENTED,Vishwamitri river overflow submerges arterial connector up to waist height
+spot-hr-1,Hero Honda Chowk Underpass & Narsinghpur,Gurugram,Haryana,28.4418,77.0177,Chokepoint,DOCUMENTED,Badshahpur drain bottleneck causes 3-4 feet inundation on Delhi-Jaipur highway
+spot-hr-2,Old Faridabad Railway Subway,Faridabad,Haryana,28.4116,77.3132,Chokepoint,DOCUMENTED,Rapidly fills with water during rain; high risk of car stall
+spot-hp-1,Thunag Bazaar Stream Crossing,Mandi,Himachal Pradesh,31.5470,77.1680,Chokepoint,DOCUMENTED,Bakhali stream cloudburst torrents carry debris and silt into market
+spot-jh-1,Kishore Ganj Harmu Bridge,Ranchi,Jharkhand,23.3640,85.3180,Waterlogging report,DOCUMENTED,Encroached Harmu river overflows directly onto road surface
+spot-ka-1,Central Silk Board Junction,Bengaluru,Karnataka,12.9177,76.6238,Chokepoint,DOCUMENTED,Major chronic waterlogging bottleneck connecting BTM and HSR layouts
+spot-ka-2,EcoSpace Outer Ring Road,Bengaluru,Karnataka,12.9260,77.6830,Waterlogging report,DOCUMENTED,Bellandur lake valley overflow creates deep water on highway lanes
+spot-kl-1,Mullakkal & AC Road,Alappuzha,Kerala,9.4981,76.3388,Waterlogging report,DOCUMENTED,Below sea-level polder waterlogging; road traffic halts during river discharge
+spot-kl-2,Chooralmala Stream Crossing,Wayanad,Kerala,11.5534,76.1320,Chokepoint,DOCUMENTED,Extreme flash torrent and debris flow danger in mountain river basin
+spot-mp-1,Bhopal Station Platform-6 Subway,Bhopal,Madhya Pradesh,23.2599,77.4126,Chokepoint,DOCUMENTED,Patra nallah overflow submerges station approaches under 3 feet water
+spot-mh-1,Hindmata Cinema Junction,Mumbai,Maharashtra,19.0118,72.8427,Waterlogging report,DOCUMENTED,Natural saucer basin in Dadar; floods up to knee depth during high tide showers
+spot-mh-2,Milan Subway,Mumbai,Maharashtra,19.0880,72.8430,Chokepoint,DOCUMENTED,Railway subway submerged in rain; traffic diverted to Milan flyover
+spot-mh-3,Bhide Low Bridge,Pune,Maharashtra,18.4900,73.8340,Chokepoint,DOCUMENTED,Mutha river water overtops bridge whenever Khadakwasla dam releases water
+spot-mn-1,Khwairamband Ima Market,Imphal,Manipur,24.8170,93.9368,Waterlogging report,DOCUMENTED,Nambul river dyke overflow drowns central bazaar up to 4 feet
+spot-ml-1,Polo Ground Low Parking,Shillong,Meghalaya,25.5788,91.8933,Chokepoint,DOCUMENTED,Wah Umkhrah stream floods ground within 30 minutes of cloudburst
+spot-mz-1,Bawngkawn Junction Culvert,Aizawl,Mizoram,23.7271,92.7176,Chokepoint,DOCUMENTED,Debris and gravel from hill cuts choke roadside drains during heavy downpour
+spot-nl-1,Supermarket Road,Dimapur,Nagaland,25.9094,93.7266,Waterlogging report,DOCUMENTED,Dhansiri river backflow and lack of stormwater network cause prolonged stagnation
+spot-od-1,ISKCON Temple NH-16 Frontage,Bhubaneswar,Odisha,20.2961,85.8245,Chokepoint,DOCUMENTED,Drain No. 10 overflow inundates national highway service road waist-deep
+spot-od-2,Badambadi Bus Terminal,Cuttack,Odisha,20.4625,85.8828,Waterlogging report,DOCUMENTED,Kathajodi sluice gate closure traps urban runoff in central town depression
+spot-pb-1,Ranjit Avenue Low-lying Road,Amritsar,Punjab,31.6446,74.8725,Waterlogging report,DOCUMENTED,Local surface drainage bottleneck during sudden cloudburst
+spot-pb-2,Market Road Underpass,Amritsar,Punjab,31.6377,74.8792,Chokepoint,DOCUMENTED,Underpass collects stormwater rapidly during peak rain
+spot-pb-3,Dhoka Mohalla Buddha Nallah Stretch,Ludhiana,Punjab,30.9010,75.8573,Waterlogging report,DOCUMENTED,Buddha Nallah overflow covers street with sewage water during monsoon
+spot-rj-1,Sikar Road Dadi Ka Phatak Underpass,Jaipur,Rajasthan,26.9124,75.7873,Chokepoint,DOCUMENTED,Underpass fills with 8 feet water during cloudburst; extreme vehicle hazard
+spot-sk-1,Tung Teesta Valley Axis,Mangan,Sikkim,27.5028,88.5322,Chokepoint,DOCUMENTED,Glacial river torrent and landslide rockfall zone on North Sikkim highway
+spot-tn-1,Velachery 100 Feet Road,Chennai,Tamil Nadu,12.9750,80.2200,Waterlogging report,DOCUMENTED,Pallikaranai marshland boundary inundation during northeast monsoon
+spot-tn-2,Vyasarapadi Ganesapuram Subway,Chennai,Tamil Nadu,13.1090,80.2610,Chokepoint,DOCUMENTED,Railway subway submerges under 6 feet water; closed during rains
+spot-tg-1,Nadeem Colony Tolichowki,Hyderabad,Telangana,17.4010,78.4110,Waterlogging report,DOCUMENTED,Built inside dried lakebed; receives runoff from Jubilee hills, 5-8 ft water
+spot-tg-2,Hunter Road Bhadrakali Bund,Warangal,Telangana,17.9689,79.5941,Chokepoint,DOCUMENTED,Bhadrakali lake overflow cuts off intercity road link between Warangal & Hanamkonda
+spot-tr-1,Orient Chowmuhani & Shakuntala Road,Agartala,Tripura,23.8315,91.2868,Waterlogging report,DOCUMENTED,Howrah river level exceeds city drain levels causing widespread urban backwater
+spot-up-1,Godowlia Crossing & Assi Confluence,Varanasi,Uttar Pradesh,25.3176,82.9739,Waterlogging report,DOCUMENTED,Ganga flood level causes Varuna and Assi backwater into city lanes
+spot-up-2,Charbagh Railway Station Underpass,Lucknow,Uttar Pradesh,26.8467,80.9462,Chokepoint,DOCUMENTED,Alambagh and station underpasses collect 3 feet water in heavy showers
+spot-uk-1,ISBT Roundabout & Prince Chowk,Dehradun,Uttarakhand,30.3165,78.0322,Chokepoint,DOCUMENTED,Rispana seasonal torrent runoff floods traffic junction
+spot-wb-1,Thanthania Kalibari College Street,Kolkata,West Bengal,22.5726,88.3639,Waterlogging report,DOCUMENTED,Historic chronic waterlogging point; hooghly river high-tide lock slows drainage
+spot-wb-2,Liluah Railway Underpass,Howrah,West Bengal,22.5958,88.2636,Chokepoint,DOCUMENTED,Deep railway subway fills with 5 feet water; public transit halts
+spot-ut-dl-1,Minto Bridge Railway Underpass,Delhi,Delhi,28.6289,77.2405,Chokepoint,DOCUMENTED,Deep railway depression; fills with 8 feet water during intense downpours
+spot-ut-dl-2,ITO Vikas Marg Junction,Delhi,Delhi,28.6289,77.2485,Waterlogging report,DOCUMENTED,Yamuna river high stage blocks stormwater outfalls causing massive traffic gridlock
+spot-ut-jk-1,Lal Chowk & Rajbagh Bund,Srinagar,Jammu and Kashmir,34.0837,74.7973,Waterlogging report,DOCUMENTED,Jhelum river flood basin; high river stages cause rapid water logging in low wards
+spot-ut-ch-1,Kishangarh Sukhna Choe Bridge,Chandigarh,Chandigarh,30.7333,76.7794,Chokepoint,DOCUMENTED,Sukhna lake floodgate release floods low causeway in heavy monsoon
+spot-ut-py-1,Rainbow Nagar & Grand Canal,Puducherry,Puducherry,11.9416,79.8083,Waterlogging report,DOCUMENTED,Grand Canal overflow submerges residential streets up to 4 feet in cyclones
+spot-as-3,NH-37 / NH-715 Submerged Corridor,Upper Assam,Assam,27.2000,94.6000,Chokepoint,DOCUMENTED,Dhansiri and Brahmaputra breach waters overtop arterial highway corridor under heavy downpours; submerged in 2026 and 2024

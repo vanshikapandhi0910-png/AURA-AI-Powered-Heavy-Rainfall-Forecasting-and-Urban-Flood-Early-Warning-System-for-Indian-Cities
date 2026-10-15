@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b2025">
+  <meta name="description" content="Experimental AI-assisted heavy rainfall and urban flood risk dashboard for Indian cities.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/styles.css">
+  <title>AURA-Flood | Dashboard</title>
+</head>
+<body data-page="dashboard">
+  <div class="official-banner" role="note"><strong>EXPERIMENTAL AI OUTPUT.</strong> Always follow <a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD</a> / <a href="https://ndma.gov.in/" target="_blank" rel="noopener">NDMA</a> advisories.</div>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span>AURA<span class="brand-accent">-Flood</span><small>INDIA · RAIN &amp; URBAN RISK EXPLORER</small></span></a>
+    <nav class="page-nav" aria-label="Main navigation"><a class="active" href="/" aria-current="page">Dashboard</a><a href="/alerts.html">Alerts &amp; local context</a></nav>
+    <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+      <button type="button" id="header-alarm-toggle" class="travel-alarm-btn active" title="Toggle travel rainfall &amp; waterlogging alarm sound"><span>🔊</span> Alarm: ON</button>
+      <span id="connection-status" class="connection-status" aria-live="polite">Checking connection…</span>
+    </div>
+  </header>
+
+  <main class="container-fluid page-wrap">
+    <section class="page-intro">
+      <div><p class="eyebrow">ALL 28 STATES &amp; 8 UNION TERRITORIES</p><h1>Know the rain.<br><span>Read the risk.</span></h1><p class="intro-copy">Neighborhood-scale rainfall, drainage chokepoints, and resident reviews across India. Instant audible alarm for rain and waterlogging ahead.</p></div>
+      <div class="source-chips"><span class="chip" style="background:rgba(69,224,193,0.18);border-color:#45e0c1;color:#45e0c1;">ALL 28 STATES &amp; 8 UTS ACTIVE</span><span class="chip simulated-chip">LOCAL OFFLINE BACKEND</span><span class="chip">AUDIBLE TRAVEL ALARM</span></div>
+    </section>
+
+    <div id="travel-alarm-container"></div>
+
+    <section class="location-panel panel" aria-labelledby="location-title">
+      <div class="panel-heading"><div><p class="eyebrow">START HERE</p><h2 id="location-title">Your location</h2></div><span class="step-count">01 / 02</span></div>
+      <div class="location-actions">
+        <button type="button" class="btn btn-primary" id="device-location"><span aria-hidden="true">◎</span> Turn on device location</button>
+        <span class="or-label">OR</span>
+        <button type="button" class="btn btn-outline-light" id="manual-toggle" aria-expanded="false" aria-controls="manual-location">Enter manually</button>
+      </div>
+      <p class="small-note" id="location-note">Device location requires data connection. Manual search is fully available offline with complete India dataset.</p>
+      
+      <div class="quick-locations">
+        <span class="quick-locations-label">Quick check India hotspots (Tap to screen):</span>
+        <div class="quick-pills-wrap">
+          <button type="button" class="quick-pill" data-state="Delhi" data-city="Delhi" data-area="ITO &amp; Minto Bridge">Delhi · ITO</button>
+          <button type="button" class="quick-pill" data-state="Maharashtra" data-city="Mumbai" data-area="Hindmata &amp; Milan Subway">Mumbai · Dadar</button>
+          <button type="button" class="quick-pill" data-state="Karnataka" data-city="Bengaluru" data-area="Silk Board &amp; Bellandur">Bengaluru · Silk Board</button>
+          <button type="button" class="quick-pill" data-state="Tamil Nadu" data-city="Chennai" data-area="Velachery &amp; Mudichur">Chennai · Velachery</button>
+          <button type="button" class="quick-pill" data-state="West Bengal" data-city="Kolkata" data-area="Park Street &amp; College Street">Kolkata · College St</button>
+          <button type="button" class="quick-pill" data-state="Telangana" data-city="Hyderabad" data-area="Tolichowki &amp; Gachibowli">Hyderabad · Tolichowki</button>
+          <button type="button" class="quick-pill" data-state="Bihar" data-city="Patna" data-area="Rajendra Nagar &amp; Kankarbagh">Patna · Rajendra Nagar</button>
+          <button type="button" class="quick-pill" data-state="Assam" data-city="Guwahati" data-area="Rukminigaon &amp; Zoo Road">Guwahati · GS Road</button>
+          <button type="button" class="quick-pill" data-state="Gujarat" data-city="Ahmedabad" data-area="Akhbarnagar Underpass">Ahmedabad · Akhbarnagar</button>
+          <button type="button" class="quick-pill" data-state="Jammu and Kashmir" data-city="Srinagar" data-area="Lal Chowk &amp; Rajbagh">Srinagar · Lal Chowk</button>
+          <button type="button" class="quick-pill" data-state="Punjab" data-city="Amritsar" data-area="Ranjit Avenue">Amritsar · Ranjit Ave</button>
+        </div>
+      </div>
+
+      <form id="manual-location" class="manual-form" hidden>
+        <label>State<input name="state" list="india-states-list" autocomplete="address-level1" placeholder="e.g. Maharashtra, Delhi, Punjab..." required></label>
+        <label>City<input name="city" list="india-cities-list" autocomplete="address-level2" placeholder="e.g. Mumbai, Delhi, Amritsar..." required></label>
+        <label>Area / locality<input name="area" autocomplete="address-line1" placeholder="e.g. Hindmata, ITO, Ranjit Avenue..."></label>
+        <button class="btn btn-primary" type="submit">Check this location</button>
+      </form>
+
+      <datalist id="india-states-list">
+        <option value="Andhra Pradesh"></option>
+        <option value="Arunachal Pradesh"></option>
+        <option value="Assam"></option>
+        <option value="Bihar"></option>
+        <option value="Chhattisgarh"></option>
+        <option value="Goa"></option>
+        <option value="Gujarat"></option>
+        <option value="Haryana"></option>
+        <option value="Himachal Pradesh"></option>
+        <option value="Jharkhand"></option>
+        <option value="Karnataka"></option>
+        <option value="Kerala"></option>
+        <option value="Madhya Pradesh"></option>
+        <option value="Maharashtra"></option>
+        <option value="Manipur"></option>
+        <option value="Meghalaya"></option>
+        <option value="Mizoram"></option>
+        <option value="Nagaland"></option>
+        <option value="Odisha"></option>
+        <option value="Punjab"></option>
+        <option value="Rajasthan"></option>
+        <option value="Sikkim"></option>
+        <option value="Tamil Nadu"></option>
+        <option value="Telangana"></option>
+        <option value="Tripura"></option>
+        <option value="Uttar Pradesh"></option>
+        <option value="Uttarakhand"></option>
+        <option value="West Bengal"></option>
+        <option value="Andaman and Nicobar Islands"></option>
+        <option value="Chandigarh"></option>
+        <option value="Dadra and Nagar Haveli and Daman and Diu"></option>
+        <option value="Delhi"></option>
+        <option value="Jammu and Kashmir"></option>
+        <option value="Ladakh"></option>
+        <option value="Lakshadweep"></option>
+        <option value="Puducherry"></option>
+      </datalist>
+      <datalist id="india-cities-list">
+        <option value="Delhi"></option>
+        <option value="Mumbai"></option>
+        <option value="Bengaluru"></option>
+        <option value="Kolkata"></option>
+        <option value="Chennai"></option>
+        <option value="Hyderabad"></option>
+        <option value="Ahmedabad"></option>
+        <option value="Pune"></option>
+        <option value="Jaipur"></option>
+        <option value="Lucknow"></option>
+        <option value="Patna"></option>
+        <option value="Darbhanga"></option>
+        <option value="Dharbanga"></option>
+        <option value="Muzaffarpur"></option>
+        <option value="Bhagalpur"></option>
+        <option value="Gaya"></option>
+        <option value="Purnia"></option>
+        <option value="Bhopal"></option>
+        <option value="Indore"></option>
+        <option value="Guwahati"></option>
+        <option value="Bhubaneswar"></option>
+        <option value="Amritsar"></option>
+        <option value="Ludhiana"></option>
+        <option value="Srinagar"></option>
+        <option value="Dehradun"></option>
+        <option value="Chandigarh"></option>
+        <option value="Panaji"></option>
+        <option value="Surat"></option>
+        <option value="Vadodara"></option>
+        <option value="Kochi"></option>
+        <option value="Alappuzha"></option>
+        <option value="Ranchi"></option>
+        <option value="Raipur"></option>
+        <option value="Varanasi"></option>
+        <option value="Noida"></option>
+        <option value="Gurugram"></option>
+        <option value="Faridabad"></option>
+        <option value="Mandi"></option>
+        <option value="Shimla"></option>
+        <option value="Imphal"></option>
+        <option value="Shillong"></option>
+        <option value="Aizawl"></option>
+        <option value="Dimapur"></option>
+        <option value="Agartala"></option>
+        <option value="Gangtok"></option>
+        <option value="Port Blair"></option>
+        <option value="Puducherry"></option>
+        <option value="Leh"></option>
+      </datalist>
+
+      <div id="location-result" class="location-result" aria-live="polite">Choose a location to see an experimental screening.</div>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel map-panel">
+        <div class="panel-heading map-heading"><div><p class="eyebrow">CIVIC RISK MAP</p><h2 id="map-title">India Civic Flood &amp; Drainage Risk Explorer</h2><p id="map-help" class="small-note">Select a map point or search any locality across India's 28 states &amp; 8 UTs.</p></div><span id="map-data-label" class="data-pill">Loading data…</span></div>
+        <div id="risk-map" class="risk-map" role="application" aria-label="Interactive flood risk map"></div>
+        <div id="map-legend" class="map-legend" aria-label="Risk map legend"><span><i class="legend-dot low"></i>Low</span><span><i class="legend-dot moderate"></i>Moderate</span><span><i class="legend-dot high"></i>High</span><span><i class="legend-dot hotspot"></i>Sample hotspot</span></div>
+        <p id="map-footnote" class="map-footnote">Risk screening synthesizes 10 m elevation models, urban drainage capacity, and documented flood events across India. <span class="simulated-inline">Labels indicate source.</span></p>
+      </article>
+      <article class="panel rainfall-panel">
+        <div class="panel-heading"><div><p class="eyebrow">NEXT 6 HOURS</p><h2>Rainfall outlook</h2></div><span id="rain-source" class="data-pill">Loading…</span></div>
+        <div class="chart-summary"><strong id="rain-total">—</strong><span>mm expected<br>in 6 hours</span></div>
+        <div class="chart-wrap"><canvas id="rain-chart" aria-label="Expected rainfall by hour over the next six hours"></canvas></div>
+        <p id="rain-status" class="small-note">Forecast source will be shown with the chart.</p>
+        <div class="current-conditions" aria-live="polite">
+          <div class="current-temperature"><p class="eyebrow">MODEL TEMPERATURE ESTIMATE</p><strong id="current-temperature">--</strong><span>°C</span></div>
+          <div class="current-weather-copy"><strong id="current-weather-status">Weather-model estimate unavailable</strong><p id="temperature-source">Model estimates can differ from local conditions and station observations.</p></div>
+        </div>
+        <div class="imd-observation" aria-live="polite">
+          <strong id="imd-temperature-range">IMD observed high / low unavailable</strong>
+          <p id="imd-temperature-source">Official city observation will be shown when available for the selected location.</p>
+          <p id="imd-rainfall-forecast" class="small-note">IMD city forecast and rainfall report will appear when a matching station is available.</p>
+          <a id="imd-city-link" href="https://city.imd.gov.in/citywx/responsive/" target="_blank" rel="noopener">Open official IMD weather page ↗</a>
+        </div>
+        <div class="official-link"><span>Official warnings are separate</span><a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">Check IMD advisories ↗</a></div>
+        <div class="official-link temperature-official"><span>Official observed temperature · India map</span><a href="https://mausam.imd.gov.in/imd_latest/contents/realized_temperature.php" target="_blank" rel="noopener">IMD realized-temperature map ↗</a></div>
+      </article>
+    </section>
+
+    <section class="panel hotspots-panel">
+      <div class="panel-heading"><div><p class="eyebrow">LOCAL KNOWLEDGE</p><h2>Nearby waterlogging &amp; chokepoints</h2></div><span id="hotspot-status" class="data-pill">Selected-area locations</span></div>
+      <div id="hotspot-list" class="hotspot-list"><p class="small-note">Loading sample locations…</p></div>
+      <p class="small-note mb-0">Locations are shown only when they match the selected area; bundled Amritsar examples are hidden elsewhere. Community submissions are unverified, and sample reports are illustrative. This list is not a live road-status or passability feed.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer"><span>AURA-Flood · Experimental research demo</span><a href="/alerts.html">Alerts &amp; local context →</a></footer>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="/app.js" defer></script>
+</body>
+</html>

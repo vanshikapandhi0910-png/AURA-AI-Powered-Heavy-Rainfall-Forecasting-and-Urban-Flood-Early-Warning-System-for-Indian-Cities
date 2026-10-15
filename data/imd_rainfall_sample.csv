@@ -1,0 +1,5 @@
+date,station,city,rainfall_mm,data_status,notes
+2025-07-01,Demo station,Amritsar,0.0,SIMULATED,Illustrative row only; not an IMD observation
+2025-07-02,Demo station,Amritsar,24.5,SIMULATED,Illustrative row only; not an IMD observation
+2025-07-03,Demo station,Amritsar,61.2,SIMULATED,Illustrative row only; not an IMD observation
+2025-07-04,Demo station,Amritsar,8.0,SIMULATED,Illustrative row only; not an IMD observation

@@ -1,0 +1,11 @@
+{
+  "name": "AURA-Flood",
+  "short_name": "AURA-Flood",
+  "description": "Experimental rainfall and urban waterlogging risk demo",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#061419",
+  "theme_color": "#0b2025",
+  "icons": []
+}
