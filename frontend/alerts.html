@@ -17,6 +17,7 @@
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span>AURA<span class="brand-accent">-Flood</span><small>INDIA · RAIN &amp; URBAN RISK EXPLORER</small></span></a>
     <nav class="page-nav" aria-label="Main navigation"><a href="/">Dashboard</a><a class="active" href="/alerts.html" aria-current="page">Alerts &amp; local context</a></nav>
     <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ Dataset Purpose &amp; Methodology</button>
       <button type="button" id="header-alarm-toggle" class="travel-alarm-btn active" title="Toggle travel rainfall &amp; waterlogging alarm sound"><span>🔊</span> Alarm: ON</button>
       <span id="connection-status" class="connection-status" aria-live="polite">Checking connection…</span>
     </div>
@@ -27,29 +28,97 @@
     <div id="travel-alarm-container"></div>
 
     <section class="panel alert-search-panel">
-      <div class="panel-heading"><div><p class="eyebrow">DASHBOARD LOCATION</p><h2>Location alert</h2></div><a class="text-link" href="/">← Choose location on dashboard</a></div>
-      <p id="selected-location-note" class="small-note" aria-live="polite">Choose a location on the dashboard to see its alert and uncertainty range here.</p>
-      <div id="alert-result" class="alert-result" aria-live="polite"><p class="small-note">No dashboard location selected yet.</p></div>
-      <div class="alert-controls"><button type="button" id="sound-toggle" class="btn btn-outline-light">🔊 Travel Alarm Sound: Active</button><span class="small-note">Audible alarm triggers when rain or severe waterlogging/clogging is detected for your area.</span></div>
-    </section>
-
-    <section class="panel map-panel alert-map-panel">
-      <div class="panel-heading map-heading"><div><p class="eyebrow">CIVIC RISK MAP</p><h2 id="map-title">Selected location</h2><p id="map-help" class="small-note">The map follows the location chosen on the dashboard. Select a point to screen a different location.</p></div><span id="map-data-label" class="data-pill">Loading data…</span></div>
-      <div id="risk-map" class="risk-map" role="application" aria-label="Interactive flood risk map; select a location for an alert"></div>
-      <div id="map-legend" class="map-legend" aria-label="Risk map legend"><span><i class="legend-dot low"></i>Low</span><span><i class="legend-dot moderate"></i>Moderate</span><span><i class="legend-dot high"></i>High</span><span><i class="legend-dot hotspot"></i>Sample hotspot</span></div>
-      <p id="map-footnote" class="map-footnote">Nationwide screening synthesizes elevation, urban drainage capacity, and documented flood events across India.</p>
-    </section>
-
-    <section class="panel evaluation-panel">
-      <div class="panel-heading"><div><p class="eyebrow">LOCATION-SPECIFIC TRANSPARENCY</p><h2>Selected location snapshot</h2></div><span id="location-summary-status" class="data-pill">Waiting for dashboard location</span></div>
-      <p id="location-summary-note" class="section-copy">Select a location on the dashboard to see its current screening and matching community reports here. These are not verified flood observations or a model-accuracy score.</p>
-      <div class="evaluation-summary">
-        <div class="metric-card"><span>Selected location</span><strong id="summary-location">—</strong></div>
-        <div class="metric-card"><span>Current model screening</span><strong id="summary-risk">—</strong></div>
-        <div class="metric-card"><span>Matching community reports</span><strong id="summary-report-count">—</strong></div>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">CIVIC INTELLIGENCE DOSSIER</p>
+          <h2>Drainage Infrastructure &amp; Historical Archive</h2>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="/" style="display:inline-flex;align-items:center;gap:6px;">🗺 View Interactive Map on Dashboard</a>
       </div>
-      <div id="summary-community-reports" class="hotspot-list"><p class="small-note">Reports for the selected location will appear here when available.</p></div>
-      <p class="small-note mb-0">Community reports are submitted by users and are unverified. They are shown for local context, not treated as ground-truth observations or used to claim model accuracy.</p>
+      <p id="selected-location-note" class="small-note" aria-live="polite">Detailed civic drainage capacity, historical inundation events, river gauges, and resident ground truth.</p>
+      
+      <div class="quick-locations" style="margin:10px 0 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+          <span class="quick-locations-label" style="margin:0;">Quick select location dossier:</span>
+          <button type="button" class="btn btn-outline-light btn-sm" id="manual-toggle" aria-expanded="false" aria-controls="manual-location" style="font-size:0.75rem;padding:3px 10px;">🔍 Search any city / locality</button>
+        </div>
+        <div class="quick-pills-wrap">
+          <button type="button" class="quick-pill" data-state="Maharashtra" data-city="Mumbai" data-area="Hindmata &amp; Milan Subway">Mumbai · Dadar</button>
+          <button type="button" class="quick-pill" data-state="Delhi" data-city="Delhi" data-area="ITO &amp; Minto Bridge">Delhi · ITO</button>
+          <button type="button" class="quick-pill" data-state="Karnataka" data-city="Bengaluru" data-area="Silk Board &amp; Bellandur">Bengaluru · Silk Board</button>
+          <button type="button" class="quick-pill" data-state="Tamil Nadu" data-city="Chennai" data-area="Velachery &amp; Mudichur">Chennai · Velachery</button>
+          <button type="button" class="quick-pill" data-state="West Bengal" data-city="Kolkata" data-area="Park Street &amp; College Street">Kolkata · College St</button>
+          <button type="button" class="quick-pill" data-state="Bihar" data-city="Patna" data-area="Rajendra Nagar &amp; Kankarbagh">Patna · Rajendra Nagar</button>
+          <button type="button" class="quick-pill" data-state="Assam" data-city="Guwahati" data-area="Rukminigaon &amp; Zoo Road">Guwahati · GS Road</button>
+          <button type="button" class="quick-pill" data-state="Punjab" data-city="Amritsar" data-area="Ranjit Avenue">Amritsar · Ranjit Ave</button>
+        </div>
+      </div>
+
+      <form id="manual-location" class="manual-form" hidden style="margin-bottom:16px;">
+        <label>State<input name="state" list="india-states-list" autocomplete="address-level1" placeholder="e.g. Maharashtra, Delhi, Punjab..."></label>
+        <label>City<input name="city" list="india-cities-list" autocomplete="address-level2" placeholder="e.g. Mumbai, Delhi, Amritsar..."></label>
+        <label>Area / locality<input name="area" autocomplete="address-line1" placeholder="e.g. Hindmata, ITO, Ranjit Avenue..."></label>
+        <button class="btn btn-primary" type="submit">Open dossier</button>
+      </form>
+
+      <datalist id="india-states-list">
+        <option value="Andhra Pradesh"></option>
+        <option value="Arunachal Pradesh"></option>
+        <option value="Assam"></option>
+        <option value="Bihar"></option>
+        <option value="Chhattisgarh"></option>
+        <option value="Goa"></option>
+        <option value="Gujarat"></option>
+        <option value="Haryana"></option>
+        <option value="Himachal Pradesh"></option>
+        <option value="Jharkhand"></option>
+        <option value="Karnataka"></option>
+        <option value="Kerala"></option>
+        <option value="Madhya Pradesh"></option>
+        <option value="Maharashtra"></option>
+        <option value="Manipur"></option>
+        <option value="Meghalaya"></option>
+        <option value="Mizoram"></option>
+        <option value="Nagaland"></option>
+        <option value="Odisha"></option>
+        <option value="Punjab"></option>
+        <option value="Rajasthan"></option>
+        <option value="Sikkim"></option>
+        <option value="Tamil Nadu"></option>
+        <option value="Telangana"></option>
+        <option value="Tripura"></option>
+        <option value="Uttar Pradesh"></option>
+        <option value="Uttarakhand"></option>
+        <option value="West Bengal"></option>
+        <option value="Andaman and Nicobar Islands"></option>
+        <option value="Chandigarh"></option>
+        <option value="Dadra and Nagar Haveli and Daman and Diu"></option>
+        <option value="Delhi"></option>
+        <option value="Jammu and Kashmir"></option>
+        <option value="Ladakh"></option>
+        <option value="Lakshadweep"></option>
+        <option value="Puducherry"></option>
+      </datalist>
+      <datalist id="india-cities-list">
+        <option value="Delhi"></option>
+        <option value="Mumbai"></option>
+        <option value="Bengaluru"></option>
+        <option value="Kolkata"></option>
+        <option value="Chennai"></option>
+        <option value="Hyderabad"></option>
+        <option value="Ahmedabad"></option>
+        <option value="Pune"></option>
+        <option value="Jaipur"></option>
+        <option value="Lucknow"></option>
+        <option value="Patna"></option>
+        <option value="Guwahati"></option>
+        <option value="Bhubaneswar"></option>
+        <option value="Amritsar"></option>
+        <option value="Srinagar"></option>
+      </datalist>
+
+      <div id="alert-result" class="alert-result" aria-live="polite"><p class="small-note">Select a location above or choose from the dashboard to open its complete civic dossier.</p></div>
+      <div class="alert-controls"><button type="button" id="sound-toggle" class="btn btn-outline-light">🔊 Travel Alarm Sound: Active</button><span class="small-note">Audible alarm triggers when rain or severe waterlogging/clogging is detected for your area.</span></div>
     </section>
 
     <section class="panel community-reports-panel">
@@ -92,8 +161,58 @@
     <p class="page-disclaimer">AURA-Flood is an experimental prototype. Do not use it as the sole basis for travel, evacuation, or emergency decisions.</p>
   </main>
   <footer class="site-footer"><span>AURA-Flood · Experimental research demo</span><a href="/">← Dashboard</a></footer>
+
+  <dialog id="dataset-modal" class="aura-modal">
+    <div class="modal-content-wrap">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" style="color:#45e0c1;font-weight:700;margin:0 0 4px;font-size:0.75rem;">AURA-FLOOD CIVIC HYDROLOGICAL DATASET</p>
+          <h3>Dataset Purpose &amp; Early-Warning Architecture</h3>
+        </div>
+        <button type="button" class="modal-close-btn" id="modal-close-btn" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-highlight-box">
+          <strong>🎯 Why this dataset was developed:</strong>
+          <p>Traditional meteorological forecasts (IMD / numerical models) predict rainfall across a large district (e.g., "50mm in Mumbai or Delhi"), but citizens, emergency responders, and commuters face acute micro-local hazards: <em>Which underpass is underwater? Which saucer basin will flood first? Where are the chokepoints?</em> AURA was developed to bridge this critical "last-mile" urban flood vulnerability gap across <strong>all 28 States and 8 Union Territories of India</strong>.</p>
+        </div>
+
+        <h4>Comprehensive Nationwide Dataset Components</h4>
+        <div class="modal-cards-grid">
+          <div class="modal-card">
+            <div class="modal-card-icon">🏛️</div>
+            <strong>82+ Micro-Localities Across 36 States &amp; UTs</strong>
+            <p>Every Indian state and UT is documented with elevation profiles, natural saucer depression basins, and drainage outfall constraints (such as coastal high-tide sea locks and river backflows).</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">🚧</div>
+            <strong>50+ Chronic Urban Chokepoints</strong>
+            <p>Catalog of critical underpasses, railway subways, and low-lying arterial bottlenecks (e.g., Minto Bridge &amp; ITO in Delhi, Hindmata &amp; Milan Subway in Mumbai, Silk Board in Bengaluru, Velachery in Chennai).</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">📜</div>
+            <strong>Historical Inundation Archive (2000–2024)</strong>
+            <p>Multi-decadal flood inundation history, peak water levels, and Central Water Commission (CWC) INDOFLOODS (2000–2020) river gauge telemetry for flood risk verification.</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">👥</div>
+            <strong>Crowdsourced Ground Truth &amp; Reviews</strong>
+            <p>Verified resident reports and community field observations, capturing local drainage rating (1 to 5) and real-world road passability during active downpours.</p>
+          </div>
+        </div>
+
+        <h4>How AURA Synthesizes Proactive Warnings</h4>
+        <p>AURA combines upcoming 6-hour rainfall forecasts with topographic depression models and municipal drainage capacity to compute <em>Time-to-Waterlogging Threshold</em>, trigger automated Travel Sirens, and recommend immediate traffic detour routes.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="modal-ok-btn">Got it — Explore Dossier</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="/india_data.js"></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

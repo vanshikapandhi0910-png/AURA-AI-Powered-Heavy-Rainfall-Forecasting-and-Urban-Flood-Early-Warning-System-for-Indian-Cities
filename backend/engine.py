@@ -571,6 +571,17 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
     if lat is not None and lon is not None:
         if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError("Enter valid latitude and longitude coordinates.")
+        # Proximity lookup to nearest known locality in India flood database
+        prox_matches = find_matching_localities(lat=lat, lon=lon)
+        if prox_matches:
+            near = prox_matches[0]
+            dist_sq = (near["latitude"] - lat) ** 2 + (near["longitude"] - lon) ** 2
+            if dist_sq <= 0.45**2:  # within ~50 km
+                label = f"{near['locality']}, {near['city']} ({near['state']}) · Device Location"
+                return lat, lon, label, False
+        city_nearby = _nearest_city_name(lat, lon)
+        if city_nearby:
+            return lat, lon, f"Near {city_nearby} · Coordinates ({lat:.4f}, {lon:.4f})", False
         return lat, lon, f"Selected coordinates ({lat:.5f}, {lon:.5f})", False
     if (lat is None) != (lon is None):
         raise ValueError("Latitude and longitude must be supplied together.")
@@ -584,11 +595,19 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
         return point[0], point[1], f"{area.strip()}, {city or expected_city.title()}{suffix}", approximate
 
     # 1. Check nationwide comprehensive India flood & drainage dataset first
-    matches = find_matching_localities(query_text=area, city=city, state=state)
+    matches = find_matching_localities(query_text=area, city=city, state=state, allow_state_fallback=True)
     if matches:
         first = matches[0]
         resolved_city = first["city"]
-        display_parts = [part for part in (area, resolved_city, first.get("state") or state) if part]
+        resolved_state = first.get("state") or state or ""
+        if not city and state:
+            label = f"{state.strip().title()} (State Overview · {resolved_city} Basin)"
+            state_key = _norm(state)
+            if state_key in STATE_CENTERS:
+                sc = STATE_CENTERS[state_key]
+                return float(sc[0]), float(sc[1]), label, False
+            return float(first["latitude"]), float(first["longitude"]), label, False
+        display_parts = [part for part in (area, resolved_city, resolved_state) if part]
         return float(first["latitude"]), float(first["longitude"]), ", ".join(display_parts), False
 
     # 2. Check exact or alias match in CITY_CENTERS
@@ -606,6 +625,13 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
             point = CITY_CENTERS[matched_key]
             display = ", ".join(part for part in (area, matched_key.title(), state) if part)
             return point[0], point[1], display, False
+
+    # Check state alone fallback if not in INDIA_FLOOD_DATABASE
+    if state and not city:
+        state_key = _norm(state)
+        if state_key in STATE_CENTERS:
+            sc = STATE_CENTERS[state_key]
+            return float(sc[0]), float(sc[1]), f"{state.strip().title()} (State Overview)", False
 
     # 4. Attempt online geocoding for unrecognized towns/villages
     if city:
@@ -632,7 +658,7 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
                 f"{display} (offline fallback coordinates)",
                 True,
             )
-    raise ValueError("Choose device location or enter a city and state.")
+    raise ValueError("Choose device location or enter a city or state.")
 
 
 def resolve_location(lat, lon, state, city, area) -> dict:
@@ -653,15 +679,37 @@ def resolve_location(lat, lon, state, city, area) -> dict:
             "Temperature is a numerical weather-model estimate for a nearby grid cell, "
             "not an on-site or station observation."
         )
+
+    inferred_city = (city or "").strip()
+    inferred_state = (state or "").strip()
+    if not inferred_city:
+        prox = find_matching_localities(lat=point_lat, lon=point_lon)
+        if prox:
+            inferred_city = prox[0]["city"]
+            if not inferred_state:
+                inferred_state = prox[0].get("state", "")
+        else:
+            inferred_city = _nearest_city_name(point_lat, point_lon) or ""
+
+    if not inferred_state and inferred_city:
+        c_norm = _norm(inferred_city)
+        for item in INDIA_FLOOD_DATABASE:
+            if _norm(item["city"]) == c_norm or any(_norm(a) == c_norm for a in item.get("aliases", [])):
+                inferred_state = item["state"]
+                break
+
+    is_state_level = not city and bool(state)
+
     return {
         "lat": point_lat,
         "lon": point_lon,
-        "city": city or _nearest_city_name(point_lat, point_lon),
-        "state": state or "",
+        "city": inferred_city,
+        "state": inferred_state,
         "area": area or "",
         "weather_location_note": weather_location_note,
         "label": label,
         "approximate": approximate,
+        "is_state_level": is_state_level,
     }
 
 
@@ -706,24 +754,11 @@ def get_alert(location: dict) -> dict:
         )
     else:
         # Nationwide India Hydrological & Drainage Assessment
-        # Use the new alert_level (RED/YELLOW/GREEN) from the alert engine
-        alert_level = historical_context.get("alert_level", "GREEN")
-        if alert_level == "RED" or clog_status == "CLOGGED":
-            risk = "High"
-            threshold = 0.5
-            confidence_pct = 94.0
-            risk_range = ["Moderate", "High"]
-        elif alert_level == "YELLOW" or clog_status in ("CAUTION", "PRONE_TO_CLOGGING", "WATCH"):
-            risk = "Moderate"
-            threshold = 2.0
-            confidence_pct = 88.5
-            risk_range = ["Low", "High"]
-        else:
-            risk = "Low"
-            threshold = 6.0
-            confidence_pct = 91.0
-            risk_range = ["Low", "Moderate"]
-
+        # Use dynamic, calibrated multi-factor calculation from clogging_assessment
+        risk = clogging_info.get("risk_class", "Moderate")
+        threshold = clogging_info.get("time_to_threshold_hours", 2.0)
+        confidence_pct = clogging_info.get("screening_score", 75.0)
+        risk_range = clogging_info.get("risk_range", ["Low", "High"])
 
         uncertainty = {
             "risk_range": risk_range,

@@ -17,6 +17,7 @@
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span>AURA<span class="brand-accent">-Flood</span><small>INDIA · RAIN &amp; URBAN RISK EXPLORER</small></span></a>
     <nav class="page-nav" aria-label="Main navigation"><a class="active" href="/" aria-current="page">Dashboard</a><a href="/alerts.html">Alerts &amp; local context</a></nav>
     <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ Dataset Purpose &amp; Methodology</button>
       <button type="button" id="header-alarm-toggle" class="travel-alarm-btn active" title="Toggle travel rainfall &amp; waterlogging alarm sound"><span>🔊</span> Alarm: ON</button>
       <span id="connection-status" class="connection-status" aria-live="polite">Checking connection…</span>
     </div>
@@ -57,8 +58,8 @@
       </div>
 
       <form id="manual-location" class="manual-form" hidden>
-        <label>State<input name="state" list="india-states-list" autocomplete="address-level1" placeholder="e.g. Maharashtra, Delhi, Punjab..." required></label>
-        <label>City<input name="city" list="india-cities-list" autocomplete="address-level2" placeholder="e.g. Mumbai, Delhi, Amritsar..." required></label>
+        <label>State<input name="state" list="india-states-list" autocomplete="address-level1" placeholder="e.g. Maharashtra, Delhi, Punjab..."></label>
+        <label>City<input name="city" list="india-cities-list" autocomplete="address-level2" placeholder="e.g. Mumbai, Delhi, Amritsar..."></label>
         <label>Area / locality<input name="area" autocomplete="address-line1" placeholder="e.g. Hindmata, ITO, Ranjit Avenue..."></label>
         <button class="btn btn-primary" type="submit">Check this location</button>
       </form>
@@ -190,8 +191,58 @@
   </main>
 
   <footer class="site-footer"><span>AURA-Flood · Experimental research demo</span><a href="/alerts.html">Alerts &amp; local context →</a></footer>
+
+  <dialog id="dataset-modal" class="aura-modal">
+    <div class="modal-content-wrap">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" style="color:#45e0c1;font-weight:700;margin:0 0 4px;font-size:0.75rem;">AURA-FLOOD CIVIC HYDROLOGICAL DATASET</p>
+          <h3>Dataset Purpose &amp; Early-Warning Architecture</h3>
+        </div>
+        <button type="button" class="modal-close-btn" id="modal-close-btn" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-highlight-box">
+          <strong>🎯 Why this dataset was developed:</strong>
+          <p>Traditional meteorological forecasts (IMD / numerical models) predict rainfall across a large district (e.g., "50mm in Mumbai or Delhi"), but citizens, emergency responders, and commuters face acute micro-local hazards: <em>Which underpass is underwater? Which saucer basin will flood first? Where are the chokepoints?</em> AURA was developed to bridge this critical "last-mile" urban flood vulnerability gap across <strong>all 28 States and 8 Union Territories of India</strong>.</p>
+        </div>
+
+        <h4>Comprehensive Nationwide Dataset Components</h4>
+        <div class="modal-cards-grid">
+          <div class="modal-card">
+            <div class="modal-card-icon">🏛️</div>
+            <strong>82+ Micro-Localities Across 36 States &amp; UTs</strong>
+            <p>Every Indian state and UT is documented with elevation profiles, natural saucer depression basins, and drainage outfall constraints (such as coastal high-tide sea locks and river backflows).</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">🚧</div>
+            <strong>50+ Chronic Urban Chokepoints</strong>
+            <p>Catalog of critical underpasses, railway subways, and low-lying arterial bottlenecks (e.g., Minto Bridge &amp; ITO in Delhi, Hindmata &amp; Milan Subway in Mumbai, Silk Board in Bengaluru, Velachery in Chennai).</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">📜</div>
+            <strong>Historical Inundation Archive (2000–2024)</strong>
+            <p>Multi-decadal flood inundation history, peak water levels, and Central Water Commission (CWC) INDOFLOODS (2000–2020) river gauge telemetry for flood risk verification.</p>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-icon">👥</div>
+            <strong>Crowdsourced Ground Truth &amp; Reviews</strong>
+            <p>Verified resident reports and community field observations, capturing local drainage rating (1 to 5) and real-world road passability during active downpours.</p>
+          </div>
+        </div>
+
+        <h4>How AURA Synthesizes Proactive Warnings</h4>
+        <p>AURA combines upcoming 6-hour rainfall forecasts with topographic depression models and municipal drainage capacity to compute <em>Time-to-Waterlogging Threshold</em>, trigger automated Travel Sirens, and recommend immediate traffic detour routes.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="modal-ok-btn">Got it — Explore India Dashboard</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="/india_data.js"></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

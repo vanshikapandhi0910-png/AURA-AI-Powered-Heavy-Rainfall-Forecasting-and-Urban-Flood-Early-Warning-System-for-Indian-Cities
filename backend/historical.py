@@ -272,99 +272,137 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
                 })
 
     # ─────────────────────────────────────────────────────────────────────
-    # ALERT LEVEL ENGINE
-    # RED / YELLOW / GREEN is driven by live temperature + rainfall.
-    # Past clogging history raises the urgency tier but never triggers red
-    # when the sky is clear and temperature is normal.
-    #
-    # Tiers:
-    #   RED    = active rain (observed/forecast) + past clogging history OR heavy rain
-    #   YELLOW = active rain with no clogging history, OR dry but historically clogged area
-    #   GREEN  = no rain, no history of clogging
+    # DYNAMIC MULTI-FACTOR SCREENING SCORING & TAILORED NARRATIVE
     # ─────────────────────────────────────────────────────────────────────
-
     is_raining = rain_indicated or peak_expected_rain >= 2.0
     is_heavy_rain = peak_expected_rain >= 8.0 or (
         isinstance(precipitation, (int, float)) and precipitation >= 6.0
     )
     temperature = current.get("temperature_2m")
-    temp_is_hot = isinstance(temperature, (int, float)) and temperature >= 30.0
 
     has_exact_locality_records = any(not loc.get("is_state_fallback", False) for loc in india_matches) or bool(matched_csv_reports)
     has_past_records = bool(combined_records) or bool(india_matches)
     has_chronic_risk = (drainage_rating <= 2 or clogged_under_rain) and has_exact_locality_records
+    is_state_level = location.get("is_state_level", False) or (not location.get("city") and bool(location.get("state")))
 
-    # ── Determine alert level ────────────────────────────────────────────
+    primary_locality = india_matches[0]["locality"] if india_matches else (location.get("area") or location.get("city") or "Selected area")
+    primary_city = india_matches[0]["city"] if india_matches else (location.get("city") or "Urban area")
+    primary_state = india_matches[0].get("state") if india_matches else (location.get("state") or "")
+
+    # Calculate dynamic multi-factor screening score (0 to 100)
+    drainage_pts_map = {1: 36.0, 2: 25.0, 3: 15.0, 4: 7.0, 5: 2.0}
+    drainage_points = drainage_pts_map.get(drainage_rating, 15.0)
+
+    elev_m = float(india_matches[0].get("elevation_m", 60.0)) if india_matches else 60.0
+    # Lower elevation basins have higher water accumulation tendency
+    elev_points = max(2.0, min(14.0, (150.0 - elev_m) * 0.08))
+
+    t_lower = (terrain_desc or "").lower()
+    if any(k in t_lower for k in ("floodplain", "basin", "bowl", "coastal", "tidal", "reclaimed", "marsh")):
+        terrain_points = 18.0
+    elif any(k in t_lower for k in ("valley", "depression", "alluvial", "low-lying")):
+        terrain_points = 12.0
+    elif any(k in t_lower for k in ("plateau", "ridge", "sloping", "hilly", "upland")):
+        terrain_points = 4.0
+    else:
+        terrain_points = 8.0
+
+    chokepoints_count = len(all_chokepoints)
+    events_count = len(combined_records)
+    history_points = min(22.0, (chokepoints_count * 2.8) + (events_count * 3.2) + (4.0 if clogged_under_rain else 0.0))
+
+    curr_rain_val = float(precipitation or 0.0)
+    rain_points = min(18.0, (curr_rain_val * 3.0) + (peak_expected_rain * 0.8))
+
+    raw_score = drainage_points + elev_points + terrain_points + history_points + rain_points
+    screening_score = round(max(15.0, min(96.0, raw_score)), 1)
+
+    # Determine Alert Level & Status
     if is_raining and (has_chronic_risk or is_heavy_rain):
-        # RED: Rain is active AND area is historically risky OR rain is very heavy
         alert_level = "RED"
         clogging_status = "CLOGGED"
-        clogging_badge = "🔴 RED ALERT — ACTIVE RAIN + PAST CLOGGING/FLOOD HISTORY"
-        if has_past_records:
-            clogging_summary = (
-                f"⚠️ Active rainfall detected in an area with documented past flood and clogging history. "
-                f"Drainage infrastructure: {drainage_desc}. It once flooded and has high chances of being flooded or clogged right now. "
-                f"It may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too."
-            )
-        else:
-            clogging_summary = (
-                f"Heavy rainfall detected. Poor drainage infrastructure ({drainage_desc}) means "
-                f"immediate waterlogging is likely at chokepoints. It may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too."
-            )
+        clogging_badge = "🔴 RED ALERT — ACTIVE RAIN & CRITICAL CLOGGING HAZARD"
         should_alarm = True
-        alarm_reason = f"🔴 RED ALERT: Rain + flood/clogging risk detected in {location.get('city') or 'this area'}!"
-
-    elif is_raining and not has_chronic_risk:
-        # YELLOW: Rain is active but no documented clogging history
+        alarm_reason = f"🔴 RED ALERT: Severe rain & waterlogging hazard detected in {primary_city}!"
+        risk_class = "High"
+        risk_range = ["Moderate", "High"]
+        time_to_threshold = round(max(0.4, 2.0 - (screening_score / 60.0)), 1)
+    elif is_raining:
         alert_level = "YELLOW"
         clogging_status = "CAUTION"
-        clogging_badge = "🟡 YELLOW — RAINING · Caution on Low-Lying Roads"
-        clogging_summary = (
-            f"It is currently raining in this area. While no specific prior local disaster record is cataloged at this exact point, "
-            f"it may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too. "
-            f"Watch for low-lying roads and underpasses."
-        )
+        clogging_badge = "🟡 CAUTION — ACTIVE RAINFALL · Slow Drainage Area"
         should_alarm = False
         alarm_reason = ""
-
-    elif not is_raining and has_past_records and has_chronic_risk:
-        # YELLOW: Dry right now but historically a clogged/flooded zone
+        risk_class = "Moderate"
+        risk_range = ["Low", "High"]
+        time_to_threshold = round(max(1.2, 4.0 - (screening_score / 35.0)), 1)
+    elif has_past_records and has_chronic_risk:
         alert_level = "YELLOW"
         clogging_status = "PRONE_TO_CLOGGING"
-        clogging_badge = "🟡 YELLOW — DRY NOW · Past Flood / Clogging Recorded"
-        clogging_summary = (
-            f"Currently dry — no active rainfall. However, this area has a documented history of severe flooding and waterlogging "
-            f"due to {drainage_desc}. It may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too. "
-            f"Monitor weather forecasts and avoid low-lying roads during downpours."
-        )
+        clogging_badge = "🟡 CAUTION — CHRONIC WATERLOGGING ZONE · Currently Dry"
         should_alarm = False
         alarm_reason = ""
-
-    elif not is_raining and has_past_records and not has_chronic_risk and has_exact_locality_records:
-        # YELLOW (mild): Dry, has some historical record but better drainage
+        risk_class = "High" if screening_score >= 68.0 else "Moderate"
+        risk_range = ["Moderate", "High"] if screening_score >= 68.0 else ["Low", "High"]
+        time_to_threshold = round(max(1.5, 5.0 - (screening_score / 30.0)), 1)
+    elif has_past_records:
         alert_level = "YELLOW"
         clogging_status = "WATCH"
-        clogging_badge = "🟡 WATCH — Dry · Historical Flooding on Record"
-        clogging_summary = (
-            f"Currently dry. Past flood events recorded for this area, though drainage is moderate ({drainage_desc}). "
-            f"It may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too. "
-            f"Monitor rainfall forecasts."
-        )
+        clogging_badge = "🟡 WATCH — MODERATE RUNOFF PROFILE · Currently Dry"
         should_alarm = False
         alarm_reason = ""
-
+        risk_class = "Moderate" if screening_score >= 42.0 else "Low"
+        risk_range = ["Low", "Moderate"]
+        time_to_threshold = round(max(2.5, 6.5 - (screening_score / 25.0)), 1)
     else:
-        # GREEN: No rain, no specific severe clogging records → safe
         alert_level = "GREEN"
         clogging_status = "CLEAR"
-        clogging_badge = "🟢 GREEN — CLEAR · No Rain · No Clogging Records"
-        clogging_summary = (
-            f"No active rainfall and no documented severe clogging history for this specific point. "
-            f"Current conditions appear normal (Drainage: {drainage_desc}, Terrain: {terrain_desc}). "
-            f"Note: Low-lying sections may be flooded as per past experiences/events witnessed by residents if it rains heavily in future too."
-        )
+        clogging_badge = "🟢 GREEN — STANDARD RUNOFF PROFILE · DRY"
         should_alarm = is_heavy_rain
-        alarm_reason = f"Unexpected heavy downpour in {location.get('city') or 'area'}." if is_heavy_rain else ""
+        alarm_reason = f"Heavy downpour detected in {primary_city}." if is_heavy_rain else ""
+        risk_class = "Low"
+        risk_range = ["Low", "Moderate"]
+        time_to_threshold = round(max(4.0, 10.0 - (screening_score / 15.0)), 1)
+
+    # ─────────────────────────────────────────────────────────────────────
+    # BESPOKE LOCATION-SPECIFIC NARRATIVE SUMMARY (NO REPETITIVE TEMPLATES)
+    # ─────────────────────────────────────────────────────────────────────
+    def _create_summary() -> str:
+        loc_display = f"{primary_locality}, {primary_city}" if primary_locality != primary_city else primary_city
+        if is_state_level:
+            loc_display = f"{primary_state} State"
+
+        # 1. Weather Sentence
+        if is_raining:
+            w_str = f"Active rain ({curr_rain_val:.1f} mm/h) is occurring over {loc_display}." if curr_rain_val > 0 else f"Rainfall expected over {loc_display} within the 6-hour forecast window (up to {peak_expected_rain:.1f} mm)."
+        else:
+            w_str = f"Dry conditions with no active precipitation detected over {loc_display}."
+
+        # 2. Drainage & Terrain Sentence
+        d_str = f"Hydrological profile: Set within {terrain_desc}, drainage capacity is rated {drainage_rating}/5 ({drainage_desc})."
+
+        # 3. Chokepoints Sentence
+        if all_chokepoints:
+            cp_str = f"Known chronic bottlenecks include {', '.join(all_chokepoints[:3])}."
+        else:
+            cp_str = "No severe chronic structural chokepoints cataloged for this immediate perimeter."
+
+        # 4. Past Events Sentence
+        if combined_records:
+            latest = combined_records[0]
+            evt_yr = latest.get("event_date") or "Recent"
+            evt_imp = latest.get("reported_impact") or latest.get("hazard", "")
+            h_str = f"Documented historical flood record: During {evt_yr}, {evt_imp}."
+        else:
+            h_str = "Historical basin record: Standard regional flood management applies."
+
+        # 5. Traveler Guidance
+        adv = travel_advisory or ("Follow municipal traffic updates and monitor local stormwater drains during downpours." if alert_level != "GREEN" else "Standard conditions apply; follow IMD forecasts.")
+        adv_str = f"Travel Guidance: {adv}"
+
+        return f"{w_str} {d_str} {cp_str} {h_str} {adv_str}"
+
+    clogging_summary = _create_summary()
 
     current_rain_status = (
         "unavailable"
@@ -392,36 +430,39 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
             "status": clogging_status,
             "alert_level": alert_level,
             "status_badge": clogging_badge,
+            "locality": primary_locality,
+            "city": primary_city,
+            "state": primary_state,
             "drainage_system": drainage_desc,
             "drainage_rating": drainage_rating,
             "terrain_type": terrain_desc,
             "clogging_tendency": clogging_tendency,
             "chronic_chokepoints": all_chokepoints,
             "resident_reviews": all_reviews,
+            "past_flood_events": [
+                {
+                    "year": rec.get("event_date", "Past Event"),
+                    "impact": rec.get("reported_impact", rec.get("hazard", "")),
+                }
+                for rec in combined_records[:4]
+            ],
             "travel_advisory": travel_advisory,
             "summary": clogging_summary,
+            "screening_score": screening_score,
+            "risk_class": risk_class,
+            "risk_range": risk_range,
+            "time_to_threshold_hours": time_to_threshold,
             "has_past_records": has_past_records,
             "is_raining": is_raining,
             "temperature_c": temperature,
+            "is_state_level": is_state_level,
         },
         "indofloods_gauges": _indofloods_gauge_context(location),
         "indofloods_coverage_note": (
             "INDOFLOODS gauge-event records cover 2000–2020 river basin stations across India; "
             "open gauge data excludes the Ganga and Brahmaputra."
         ),
-        "records": [
-            {
-                "place_name": report["place_name"],
-                "event_date": report["event_date"],
-                "hazard": report["hazard"],
-                "reported_impact": report["reported_impact"],
-                "location_precision": report.get("location_precision", "Locality"),
-                "confidence": report.get("confidence", "Medium"),
-                "source_name": report.get("source_name", "Documented source"),
-                "source_url": report.get("source_url", "https://ndma.gov.in/"),
-            }
-            for report in matched_csv_reports
-        ] if matched_csv_reports else combined_records,
+        "records": combined_records,
         "nationwide_records": combined_records,
         "warning_text": (
             f"{clogging_badge}: {clogging_summary} {travel_advisory}"
