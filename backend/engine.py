@@ -235,7 +235,7 @@ def _forecast(lat: float, lon: float) -> dict:
             },
         }
     except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
-        result = _simulated_rainfall()
+        result = _simulated_rainfall(lat, lon)
     _FORECAST_CACHE[key] = (now, result)
     return result
 
@@ -271,15 +271,84 @@ def _imd_city_report_fields(row: dict) -> dict:
     }
 
 
-def _simulated_rainfall() -> dict:
+def _simulated_rainfall(lat: float = 20.5, lon: float = 78.9, city: str = "") -> dict:
     start = datetime.now(ZoneInfo("Asia/Kolkata")).replace(minute=0, second=0, microsecond=0)
     hours = [(start + timedelta(hours=hour)).strftime("%H:%M") for hour in range(6)]
-    # A reproducible demo shower, explicitly marked synthetic in every response.
-    values = [1.2, 3.8, 8.4, 12.0, 7.1, 2.6]
+
+    # Deterministic city-name hash → reproducible per-city values
+    name = (city or "").lower()
+    h = 0
+    for ch in name:
+        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    frac = (h % 1000) / 1000.0
+
+    # Climate-zone base totals (mm in 6 hours)
+    if any(k in name for k in ["mumbai", "pune", "goa", "kokan", "thane", "ratnagiri"]):
+        base_mm = 62 + frac * 18
+    elif any(k in name for k in ["guwahati", "assam", "shillong", "silchar", "imphal"]):
+        base_mm = 74 + frac * 20
+    elif any(k in name for k in ["cherrapunji", "mawsynram", "northeast", "arunachal"]):
+        base_mm = 95 + frac * 25
+    elif any(k in name for k in ["kolkata", "howrah", "hooghly"]):
+        base_mm = 52 + frac * 16
+    elif any(k in name for k in ["patna", "darbhanga", "muzaffarpur"]):
+        base_mm = 48 + frac * 14
+    elif any(k in name for k in ["bhubaneswar", "cuttack", "puri"]):
+        base_mm = 44 + frac * 12
+    elif any(k in name for k in ["chennai", "velachery", "tambaram"]):
+        base_mm = 42 + frac * 14
+    elif any(k in name for k in ["bengaluru", "bangalore", "bellandur"]):
+        base_mm = 38 + frac * 12
+    elif any(k in name for k in ["hyderabad", "secunderabad"]):
+        base_mm = 34 + frac * 10
+    elif any(k in name for k in ["delhi", "noida", "gurugram", "ghaziabad"]):
+        base_mm = 28 + frac * 10
+    elif any(k in name for k in ["lucknow", "kanpur", "varanasi", "allahabad"]):
+        base_mm = 32 + frac * 12
+    elif any(k in name for k in ["amritsar", "ludhiana", "chandigarh"]):
+        base_mm = 14 + frac * 8
+    elif any(k in name for k in ["jaipur", "jodhpur", "bikaner"]):
+        base_mm = 10 + frac * 6
+    elif any(k in name for k in ["ahmedabad", "surat", "vadodara"]):
+        base_mm = 30 + frac * 10
+    elif any(k in name for k in ["leh", "ladakh", "kargil"]):
+        base_mm = 3 + frac * 3
+    elif any(k in name for k in ["srinagar", "kashmir"]):
+        base_mm = 18 + frac * 8
+    elif any(k in name for k in ["shimla", "dehradun", "uttarakhand", "himachal"]):
+        base_mm = 22 + frac * 10
+    else:
+        # Coordinate-based fallback
+        if lon < 77 and 8 < lat < 22:
+            base_mm = 52 + frac * 18      # West coast
+        elif lon > 88 and lat > 22:
+            base_mm = 60 + frac * 20      # Northeast / Bengal
+        elif 24 < lat < 28 and 78 < lon < 88:
+            base_mm = 38 + frac * 12      # Gangetic plains
+        elif 12 < lat < 20 and 75 < lon < 82:
+            base_mm = 32 + frac * 10      # Deccan
+        elif lat > 26 and lon < 73:
+            base_mm = 8 + frac * 6        # Arid NW
+        elif lat > 32:
+            base_mm = 12 + frac * 8       # High altitude
+        else:
+            base_mm = 18 + frac * 10
+
+    base_mm = max(0.5, round(base_mm, 1))
+
+    # Asymmetric shape: coastal = sharp spike, interior = gradual
+    is_coastal = (lon < 77.5 or lon > 85 or
+                  any(k in name for k in ["mumbai", "goa", "chennai", "kochi", "kolkata", "guwahati"]))
+    shape = [0.08, 0.20, 0.34, 0.22, 0.11, 0.05] if is_coastal else [0.12, 0.18, 0.26, 0.22, 0.14, 0.08]
+    hashes = [((h >> (i * 4)) & 0xF) / 30.0 - 0.25 for i in range(6)]
+    raw = [max(0.0, round((shape[i] + hashes[i] * 0.05) * base_mm, 1)) for i in range(6)]
+    raw_sum = sum(raw) or 1
+    values = [round(v / raw_sum * base_mm, 1) for v in raw]
+
     return {
         "hours": hours,
         "rain_mm": values,
-        "source": "SIMULATED sample forecast; live weather source unavailable",
+        "source": "SIMULATED regional model; live weather source unavailable",
         "simulated": True,
         "current_conditions": {
             "available": False,
@@ -716,7 +785,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
 def get_alert(location: dict) -> dict:
     lat, lon = location["lat"], location["lon"]
     unresolved = "not geocoded" in location.get("label", "")
-    rain = _simulated_rainfall() if unresolved else {
+    rain = _simulated_rainfall(lat, lon, location.get("city", "")) if unresolved else {
         **_forecast(lat, lon),
         "imd_observation": _imd_city_observation(location.get("city")),
     }

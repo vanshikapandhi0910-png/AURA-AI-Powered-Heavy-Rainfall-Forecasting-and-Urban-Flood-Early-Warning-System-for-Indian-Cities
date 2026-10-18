@@ -95,7 +95,7 @@ a:hover { color: #a4f5e5; }
 .map-panel { padding: 19px; }
 .map-heading { margin-bottom: 13px; }
 .map-heading .small-note { margin-top: 5px; }
-.risk-map { position: relative; height: 520px; overflow: hidden; border: 1px solid #244449; border-radius: 10px; background: #102629; }
+.risk-map { position: relative; height: 640px; overflow: hidden; border: 1px solid #244449; border-radius: 12px; background: #0a191c; box-shadow: 0 16px 40px rgba(0,0,0,0.35); }
 .map-location-notice { position: absolute; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: #102629; color: #c2d5d1; font-size: .88rem; line-height: 1.55; text-align: center; }
 .risk-map .leaflet-container { height: 100%; background: #102629; font-family: inherit; }
 .risk-map .leaflet-control-attribution, .risk-map .leaflet-control-scale-line { background: rgba(8, 24, 26, .8); color: #b1c3c0; }
@@ -725,13 +725,13 @@ a:hover { color: #a4f5e5; }
   padding-top: 14px;
 }
 
-/* Map Overlay Controls */
+/* Map Overlay Controls & Windy Full-Feature System */
 .india-map-reset-btn {
   position: absolute;
-  top: 12px;
+  top: 10px;
   right: 12px;
-  z-index: 999;
-  background: rgba(11, 32, 37, 0.9);
+  z-index: 1001;
+  background: rgba(11, 32, 37, 0.92);
   border: 1px solid #45e0c1;
   color: #45e0c1;
   padding: 6px 12px;
@@ -739,14 +739,677 @@ a:hover { color: #a4f5e5; }
   font-size: 0.76rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   gap: 6px;
+  backdrop-filter: blur(8px);
   transition: all 0.2s ease;
 }
 .india-map-reset-btn:hover {
   background: #45e0c1;
   color: #0b2025;
 }
+
+/* 1. Dynamic Canvas Particle Overlay */
+.windy-particle-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 450;
+}
+
+/* 2. Top Quick Hotspots & Coastal Marine Stations Bar */
+.windy-hotspots-bar {
+  position: absolute;
+  top: 10px;
+  left: 54px;
+  right: 185px;
+  z-index: 1000;
+  pointer-events: auto;
+}
+.hotspots-scroll-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 28, 32, 0.88);
+  border: 1px solid rgba(69, 224, 193, 0.25);
+  border-radius: 10px;
+  padding: 4px 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.hotspots-tag {
+  color: #45e0c1;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.hotspots-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+}
+.hotspots-pills::-webkit-scrollbar {
+  display: none;
+}
+.windy-spot-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #d1e7e4;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.windy-spot-pill:hover {
+  background: rgba(69, 224, 193, 0.2);
+  border-color: #45e0c1;
+  color: #45e0c1;
+}
+
+/* 3. Windy-Style Floating Layer Dock (Right) */
+.windy-layer-dock {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(11, 28, 32, 0.92);
+  border: 1px solid rgba(69, 224, 193, 0.24);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  backdrop-filter: blur(14px);
+  min-width: 90px;
+}
+.layer-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+.layer-dock-header span {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #8daea9;
+  letter-spacing: 0.06em;
+}
+.windy-badge {
+  background: #ffbd61;
+  color: #0b2025 !important;
+  font-size: 0.52rem !important;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.layer-dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #b8cfcc;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.16s ease;
+}
+.layer-dock-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.layer-dock-btn.active {
+  background: rgba(69, 224, 193, 0.18);
+  border-color: #45e0c1;
+  color: #45e0c1;
+  font-weight: 750;
+  box-shadow: 0 0 10px rgba(69, 224, 193, 0.2);
+}
+.layer-dock-btn .layer-icon {
+  font-size: 0.95rem;
+}
+
+/* 4. Windy Interactive Timeline Scrubber Bar (Bottom) */
+.windy-timeline-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 1000;
+  background: rgba(10, 26, 29, 0.94);
+  border: 1px solid rgba(69, 224, 193, 0.28);
+  border-radius: 12px;
+  padding: 8px 14px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.windy-control-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e9f4f1;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.windy-control-btn:hover {
+  background: #45e0c1;
+  color: #0b2025;
+  border-color: #45e0c1;
+}
+.windy-control-btn.play-btn {
+  background: #45e0c1;
+  color: #06231f;
+  font-weight: 700;
+  width: 36px;
+  height: 36px;
+}
+.windy-control-btn.play-btn.playing {
+  background: #ffbd61;
+  color: #06231f;
+}
+.timeline-time-display {
+  display: flex;
+  flex-direction: column;
+  margin-left: 4px;
+}
+.timeline-time-display .time-main {
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.timeline-time-display .time-sub {
+  color: #45e0c1;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.timeline-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.timeline-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.timeline-tick {
+  background: none;
+  border: none;
+  color: #799d98;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.timeline-tick:hover, .timeline-tick.active {
+  color: #45e0c1;
+}
+.windy-timeline-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.windy-timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #45e0c1;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(69, 224, 193, 0.8);
+  transition: transform 0.15s ease;
+}
+.windy-timeline-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.timeline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.windy-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cce2df;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+.windy-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.windy-toggle-btn.active {
+  background: rgba(69, 224, 193, 0.2);
+  border-color: #45e0c1;
+  color: #45e0c1;
+}
+.windy-toggle-btn.compare-btn {
+  background: linear-gradient(135deg, rgba(255, 189, 97, 0.2), rgba(69, 224, 193, 0.2));
+  border-color: #ffbd61;
+  color: #ffbd61;
+}
+.windy-toggle-btn.compare-btn:hover {
+  background: #ffbd61;
+  color: #0b2025;
+}
+
+/* 5. Dynamic Color Legend Bar */
+.windy-legend-bar {
+  position: absolute;
+  bottom: 82px;
+  right: 12px;
+  z-index: 999;
+  background: rgba(11, 28, 32, 0.92);
+  border: 1px solid rgba(69, 224, 193, 0.24);
+  border-radius: 10px;
+  padding: 6px 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  width: 250px;
+}
+.legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.legend-title {
+  color: #e9f4f1;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+.unit-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #45e0c1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.legend-ramp-wrap {
+  position: relative;
+  margin: 3px 0;
+}
+.legend-ramp {
+  height: 9px;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+}
+.legend-indicator {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 15px;
+  background: #ffffff;
+  border: 1px solid #000;
+  border-radius: 2px;
+  box-shadow: 0 0 6px #fff;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: left 0.25s ease;
+}
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #8faea9;
+  font-size: 0.58rem;
+  font-weight: 600;
+}
+
+/* 6. Windy Weather & Marine Picker Pin */
+.windy-picker-icon-wrap {
+  pointer-events: none;
+}
+.windy-picker-pin {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.picker-pulse {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #45e0c1;
+  animation: pickerPulseAnim 2s infinite ease-out;
+}
+@keyframes pickerPulseAnim {
+  0% { transform: scale(0.3); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.picker-crosshair {
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border: 3px solid #ff4444;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.9);
+}
+
+/* 7. Floating Glassmorphism Picker Card */
+.windy-picker-card {
+  position: absolute;
+  top: 54px;
+  left: 14px;
+  z-index: 1002;
+  width: 340px;
+  max-width: calc(100% - 28px);
+  background: rgba(10, 26, 29, 0.96);
+  border: 1px solid rgba(69, 224, 193, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  color: var(--ink);
+  animation: pickerCardPop 0.22s ease-out;
+}
+@keyframes pickerCardPop {
+  0% { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+.picker-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #45e0c1;
+  letter-spacing: 0.07em;
+}
+.picker-place {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.picker-coords {
+  display: block;
+  font-size: 0.68rem;
+  color: #89aba6;
+  margin-top: 2px;
+}
+.picker-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #c4d8d5;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.picker-close-btn:hover {
+  background: #ff6969;
+  color: #fff;
+  border-color: #ff6969;
+}
+.picker-model-selector {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.picker-model-selector::-webkit-scrollbar {
+  display: none;
+}
+.model-pill {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #b0c9c5;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.model-pill small {
+  display: block;
+  font-size: 0.52rem;
+  opacity: 0.75;
+}
+.model-pill.active {
+  background: rgba(69, 224, 193, 0.2);
+  border-color: #45e0c1;
+  color: #45e0c1;
+}
+.picker-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.picker-metric-cell {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.picker-metric-cell.highlight {
+  background: rgba(69, 224, 193, 0.1);
+  border-color: rgba(69, 224, 193, 0.35);
+}
+.picker-metric-cell .cell-label {
+  font-size: 0.6rem;
+  font-weight: 750;
+  color: #8daea9;
+  letter-spacing: 0.04em;
+}
+.picker-metric-cell .cell-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 1px 0;
+}
+.picker-metric-cell .cell-sub {
+  font-size: 0.62rem;
+  color: #9cb8b4;
+}
+.picker-synoptic-note {
+  background: rgba(255, 189, 97, 0.08);
+  border: 1px solid rgba(255, 189, 97, 0.25);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 10px;
+}
+.picker-synoptic-note strong {
+  color: #ffbd61;
+  font-size: 0.68rem;
+  display: block;
+  margin-bottom: 2px;
+}
+.picker-synoptic-note p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #d8e5e3;
+  line-height: 1.35;
+}
+.picker-meteogram-wrap {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 10px;
+}
+.meteogram-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  font-weight: 750;
+  color: #7fa49f;
+  margin-bottom: 6px;
+}
+.meteogram-bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 48px;
+  gap: 2px;
+}
+.meteogram-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.meteogram-col .m-val {
+  font-size: 0.52rem;
+  color: #c7dedb;
+  margin-bottom: 2px;
+}
+.meteogram-col .m-bar-track {
+  flex: 1;
+  width: 100%;
+  max-width: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  display: flex;
+  align-items: flex-end;
+}
+.meteogram-col .m-bar-fill {
+  width: 100%;
+  background: linear-gradient(to top, #45e0c1, #38bdf8);
+  border-radius: 3px;
+  min-height: 3px;
+}
+.meteogram-col .m-label {
+  font-size: 0.52rem;
+  color: #7b9e99;
+  margin-top: 3px;
+}
+.picker-actions {
+  display: flex;
+  gap: 8px;
+}
+.picker-actions .btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+}
+
+/* 8. Comparison Table Modal Styles */
+.windy-comp-modal .modal-content-wrap {
+  max-width: 780px;
+}
+.comparison-table-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+}
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.comparison-table th {
+  background: rgba(255, 255, 255, 0.06);
+  color: #45e0c1;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.comparison-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #c8dedb;
+}
+.comparison-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .risk-map {
+    height: 540px;
+  }
+  .windy-timeline-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .windy-hotspots-bar {
+    right: 70px;
+    left: 10px;
+  }
+  .windy-picker-card {
+    width: 290px;
+    top: 50px;
+    left: 8px;
+  }
+  .windy-legend-bar {
+    display: none;
+  }
+}
+
 

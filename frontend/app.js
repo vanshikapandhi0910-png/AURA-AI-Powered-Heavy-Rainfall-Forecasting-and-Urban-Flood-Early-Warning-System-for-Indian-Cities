@@ -290,10 +290,10 @@
     if (!leafletMap) return;
     leafletMap.setView(INDIA_CENTER, INDIA_DEFAULT_ZOOM);
     const mapTitle = document.getElementById("map-title");
-    if (mapTitle) mapTitle.textContent = "🗺️ India Political & Civic Risk Explorer";
+    if (mapTitle) mapTitle.textContent = "🗺️ India — Tap any city to check flood risk";
     const mapHelp = document.getElementById("map-help");
-    if (mapHelp) mapHelp.textContent = "Political map of India with active civic monitoring nodes across all 28 States & 8 UTs. Tap any city node or area to explore.";
-    setMapStatus("India Political Map · 36 States & UTs Active", false);
+    if (mapHelp) mapHelp.textContent = "All 28 States & 8 Union Territories. Enter your city above or tap any city node on the map to see local flood risk.";
+    setMapStatus("India — 28 States & 8 UTs Active", false);
     renderNationalNodes();
   }
 
@@ -349,6 +349,9 @@
     if (leafletMap) {
       leafletMap.flyTo([lat, lon], 14, { duration: 1.2 });
     }
+    if (window.AURA_WINDY_ENGINE?.inspectPoint) {
+      window.AURA_WINDY_ENGINE.inspectPoint(lat, lon, false);
+    }
     showPointAlert(lat, lon, `${city}, ${state}`);
   };
 
@@ -393,8 +396,18 @@
       element.appendChild(resetBtn);
     }
 
-    leafletMap.on("click", event => showPointAlert(event.latlng.lat, event.latlng.lng));
+    leafletMap.on("click", event => {
+      showPointAlert(event.latlng.lat, event.latlng.lng);
+      if (window.AURA_WINDY_ENGINE?.inspectPoint) {
+        window.AURA_WINDY_ENGINE.inspectPoint(event.latlng.lat, event.latlng.lng, false);
+      }
+    });
     renderNationalNodes();
+
+    // Initialize Windy Engine (dynamic particles, timeline player, layer switcher dock, picker)
+    if (window.AURA_WINDY_ENGINE?.init) {
+      window.AURA_WINDY_ENGINE.init(leafletMap);
+    }
     return true;
   }
 
@@ -1247,6 +1260,9 @@
   async function showPointAlert(lat, lon, source = "Map-selected coordinates") {
     const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
     saveSelectedLocation(params, source);
+    if (window.AURA_WINDY_ENGINE?.inspectPoint) {
+      window.AURA_WINDY_ENGINE.inspectPoint(lat, lon, false);
+    }
     const targetId = document.body.dataset.page === "alerts" ? "alert-result" : "location-result";
     const target = document.getElementById(targetId);
     if (target) target.textContent = `${source}. Calculating the risk screening and uncertainty range…`;
@@ -1405,6 +1421,7 @@
       console.warn("Audio alarm could not be played automatically", err);
     }
   }
+  window.playTravelAlarmSiren = playTravelAlarmSiren;
 
   function bindDeviceLocation() {
     const button = document.getElementById("device-location");
@@ -1519,9 +1536,15 @@
     const hasSelectedLocation = Boolean(saved);
     if (hasSelectedLocation) setMapStatus("Loading selected location…", false);
 
-    // Load rainfall outlook and IMD temperature
-    const rain = await getData(`/api/rainfall${hasSelectedLocation ? `?${saved.params}` : ""}`);
-    if (rain) renderRainfall(rain);
+    // Only load city-specific rainfall when the user has a saved location
+    if (hasSelectedLocation) {
+      const rain = await getData(`/api/rainfall?${saved.params}`);
+      if (rain) renderRainfall(rain);
+    } else {
+      // No city selected: show a gentle India-wide placeholder (Delhi as neutral mid-India)
+      const rain = await getData("/api/rainfall?lat=20.5&lon=78.9&city=India");
+      if (rain) renderRainfall(rain);
+    }
 
     // Load waterlogging chokepoints
     const spotResult = await getData("/api/hotspots");
@@ -1534,6 +1557,7 @@
       if (grid) showMap(grid, spots);
     }
   }
+
 
   function bindDatasetModal() {
     const btn = document.getElementById("dataset-info-btn");

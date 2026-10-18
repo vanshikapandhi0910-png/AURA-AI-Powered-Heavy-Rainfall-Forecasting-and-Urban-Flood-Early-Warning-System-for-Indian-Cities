@@ -12,18 +12,18 @@
   <title>AURA-Flood | Alerts &amp; local context</title>
 </head>
 <body data-page="alerts">
-  <div class="official-banner" role="note"><strong>EXPERIMENTAL AI OUTPUT.</strong> Always follow <a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD</a> / <a href="https://ndma.gov.in/" target="_blank" rel="noopener">NDMA</a> advisories.</div>
+  <div class="official-banner" role="note">🌧 <strong>Heads-up:</strong> AURA is an experimental tool. For official warnings, always check <a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD</a> and <a href="https://ndma.gov.in/" target="_blank" rel="noopener">NDMA</a>.</div>
   <header class="site-header">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span>AURA<span class="brand-accent">-Flood</span><small>INDIA · RAIN &amp; URBAN RISK EXPLORER</small></span></a>
     <nav class="page-nav" aria-label="Main navigation"><a href="/">Dashboard</a><a class="active" href="/alerts.html" aria-current="page">Alerts &amp; local context</a></nav>
     <div class="header-right" style="display:flex;align-items:center;gap:10px;">
-      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ Dataset Purpose &amp; Methodology</button>
+      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ About this tool</button>
       <button type="button" id="header-alarm-toggle" class="travel-alarm-btn active" title="Toggle travel rainfall &amp; waterlogging alarm sound"><span>🔊</span> Alarm: ON</button>
-      <span id="connection-status" class="connection-status" aria-live="polite">Checking connection…</span>
+      <span id="connection-status" class="connection-status" aria-live="polite">Checking…</span>
     </div>
   </header>
   <main class="container-fluid page-wrap">
-    <section class="page-intro compact-intro"><div><p class="eyebrow">ALL 28 STATES &amp; 8 UTS · DRAINAGE &amp; CLOGGING STATUS</p><h1>Alerts &amp; <span>local context.</span></h1><p class="intro-copy">Past experiences, drainage system capacity, and resident reviews. Prior alarming sound alerts travelers to waterlogging &amp; active rain.</p></div></section>
+    <section class="page-intro compact-intro"><div><p class="eyebrow">ALL 28 STATES &amp; 8 UTS · DRAINAGE &amp; CLOGGING STATUS</p><h1>Alerts &amp; <span>local intel.</span></h1><p class="intro-copy">Your neighbourhood’s drainage history, resident ground-truth, and waterlogging risk — all in one place. The travel alarm warns you the moment heavy rain is detected.</p></div></section>
 
     <div id="travel-alarm-container"></div>
 
@@ -213,6 +213,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="/india_data.js"></script>
+  <script src="/windy_engine.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

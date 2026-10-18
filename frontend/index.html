@@ -12,21 +12,21 @@
   <title>AURA-Flood | Dashboard</title>
 </head>
 <body data-page="dashboard">
-  <div class="official-banner" role="note"><strong>EXPERIMENTAL AI OUTPUT.</strong> Always follow <a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD</a> / <a href="https://ndma.gov.in/" target="_blank" rel="noopener">NDMA</a> advisories.</div>
+  <div class="official-banner" role="note">🌧 <strong>Heads-up:</strong> AURA is an experimental tool. For official warnings, always check <a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD</a> and <a href="https://ndma.gov.in/" target="_blank" rel="noopener">NDMA</a>.</div>
   <header class="site-header">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span>AURA<span class="brand-accent">-Flood</span><small>INDIA · RAIN &amp; URBAN RISK EXPLORER</small></span></a>
     <nav class="page-nav" aria-label="Main navigation"><a class="active" href="/" aria-current="page">Dashboard</a><a href="/alerts.html">Alerts &amp; local context</a></nav>
     <div class="header-right" style="display:flex;align-items:center;gap:10px;">
-      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ Dataset Purpose &amp; Methodology</button>
+      <button type="button" id="dataset-info-btn" class="dataset-info-btn" title="View dataset purpose, methodology and architecture">ℹ️ About this tool</button>
       <button type="button" id="header-alarm-toggle" class="travel-alarm-btn active" title="Toggle travel rainfall &amp; waterlogging alarm sound"><span>🔊</span> Alarm: ON</button>
-      <span id="connection-status" class="connection-status" aria-live="polite">Checking connection…</span>
+      <span id="connection-status" class="connection-status" aria-live="polite">Checking…</span>
     </div>
   </header>
 
   <main class="container-fluid page-wrap">
     <section class="page-intro">
-      <div><p class="eyebrow">ALL 28 STATES &amp; 8 UNION TERRITORIES</p><h1>Know the rain.<br><span>Read the risk.</span></h1><p class="intro-copy">Neighborhood-scale rainfall, drainage chokepoints, and resident reviews across India. Instant audible alarm for rain and waterlogging ahead.</p></div>
-      <div class="source-chips"><span class="chip" style="background:rgba(69,224,193,0.18);border-color:#45e0c1;color:#45e0c1;">ALL 28 STATES &amp; 8 UTS ACTIVE</span><span class="chip simulated-chip">LOCAL OFFLINE BACKEND</span><span class="chip">AUDIBLE TRAVEL ALARM</span></div>
+      <div><p class="eyebrow">ALL 28 STATES &amp; 8 UNION TERRITORIES</p><h1>Know the rain.<br><span>Read the risk.</span></h1><p class="intro-copy">Hyper-local rainfall readings, drainage risk, and real commuter reviews — for every city across India. Tap a location and get an instant safety reading.</p></div>
+      <div class="source-chips"><span class="chip" style="background:rgba(69,224,193,0.18);border-color:#45e0c1;color:#45e0c1;">28 STATES &amp; 8 UTs COVERED</span><span class="chip" style="background:rgba(255,189,97,0.18);border-color:#ffbd61;color:#ffbd61;">LIVE WEATHER PARTICLES</span><span class="chip simulated-chip">WORKS OFFLINE</span><span class="chip">🔔 TRAVEL ALARM</span></div>
     </section>
 
     <div id="travel-alarm-container"></div>
@@ -158,7 +158,7 @@
 
     <section class="dashboard-grid">
       <article class="panel map-panel">
-        <div class="panel-heading map-heading"><div><p class="eyebrow">CIVIC RISK MAP</p><h2 id="map-title">India Civic Flood &amp; Drainage Risk Explorer</h2><p id="map-help" class="small-note">Select a map point or search any locality across India's 28 states &amp; 8 UTs.</p></div><span id="map-data-label" class="data-pill">Loading data…</span></div>
+        <div class="panel-heading map-heading"><div><p class="eyebrow">CIVIC RISK MAP</p><h2 id="map-title">🗺️ India — Tap any city to check flood risk</h2><p id="map-help" class="small-note">All 28 States &amp; 8 Union Territories. Enter your city above or tap a node on the map to see local risk.</p></div><span id="map-data-label" class="data-pill">Ready</span></div>
         <div id="risk-map" class="risk-map" role="application" aria-label="Interactive flood risk map"></div>
         <div id="map-legend" class="map-legend" aria-label="Risk map legend"><span><i class="legend-dot low"></i>Low</span><span><i class="legend-dot moderate"></i>Moderate</span><span><i class="legend-dot high"></i>High</span><span><i class="legend-dot hotspot"></i>Sample hotspot</span></div>
         <p id="map-footnote" class="map-footnote">Risk screening synthesizes 10 m elevation models, urban drainage capacity, and documented flood events across India. <span class="simulated-inline">Labels indicate source.</span></p>
@@ -243,6 +243,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="/india_data.js"></script>
+  <script src="/windy_engine.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>
