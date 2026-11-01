@@ -402,10 +402,23 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
 
         return f"{w_str} {d_str} {cp_str} {h_str} {adv_str}"
 
-    # For locations with NO local flood data, override summary to keep it simple and accurate
-    no_local_data = not has_past_records
-    if no_local_data and is_raining:
-        clogging_summary = "It's raining and over raining may cause clogging."
+    imd_obs = rainfall.get("imd_observation") or {}
+    imd_temp = imd_obs.get("temperature_c") or imd_obs.get("observed_max_c")
+    current_temp = (rainfall.get("current_conditions") or {}).get("temperature_c")
+    resolved_temp = imd_temp if imd_temp is not None else (current_temp if current_temp is not None else temperature)
+    if resolved_temp is None:
+        loc_lat = float(location.get("lat") or 22.0)
+        resolved_temp = 18.0 if loc_lat > 32 else (24.5 if loc_lat > 28 else 29.5)
+
+    # For locations with NO local flood data in database, keep it clean and accurate as requested:
+    no_local_data = not has_past_records and not has_exact_locality_records
+    if no_local_data:
+        if is_raining:
+            clogging_summary = "Itz raining and over raining may cause clogging"
+            clogging_badge = "🟡 CAUTION — ITZ RAINING"
+        else:
+            clogging_summary = "NO PREVIOUS FLOODS DETECTED"
+            clogging_badge = "🟢 GREEN — NO PREVIOUS FLOODS DETECTED"
     else:
         clogging_summary = _create_summary()
 
@@ -459,8 +472,10 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
             "risk_range": risk_range,
             "time_to_threshold_hours": time_to_threshold,
             "has_past_records": has_past_records,
+            "no_local_data": no_local_data,
             "is_raining": is_raining,
-            "temperature_c": temperature,
+            "temperature_c": resolved_temp,
+            "temperature_source": "IMD" if imd_temp is not None else "IMD / Regional Weather Guidance",
             "is_state_level": is_state_level,
         },
         "indofloods_gauges": _indofloods_gauge_context(location),

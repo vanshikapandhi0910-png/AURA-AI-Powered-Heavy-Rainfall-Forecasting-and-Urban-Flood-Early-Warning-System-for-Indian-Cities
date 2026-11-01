@@ -995,7 +995,12 @@
 
     const closeBtn = card.querySelector("#windy-picker-close");
     if (closeBtn) {
+      if (window.L && L.DomEvent) {
+        L.DomEvent.disableClickPropagation(closeBtn);
+        L.DomEvent.disableScrollPropagation(closeBtn);
+      }
       const handleClose = (e) => {
+        window._auraPickerJustClosed = Date.now();
         if (e) {
           e.preventDefault();
           e.stopPropagation();
@@ -1012,9 +1017,9 @@
         }
         state.pickerData = null;
       };
-      closeBtn.addEventListener("click", handleClose);
-      closeBtn.addEventListener("touchend", handleClose, { passive: false });
-      closeBtn.addEventListener("pointerup", handleClose);
+      ["click", "pointerdown", "pointerup", "touchstart", "touchend", "mousedown"].forEach(evt => {
+        closeBtn.addEventListener(evt, handleClose, { passive: false });
+      });
     }
 
     card.querySelectorAll(".model-pill").forEach(pill => {
@@ -1183,6 +1188,7 @@
       });
 
       leafletMap.on("click", (e) => {
+        if (Date.now() - (window._auraPickerJustClosed || 0) < 800) return;
         if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn")) return;
         inspectPoint(e.latlng.lat, e.latlng.lng);
       });

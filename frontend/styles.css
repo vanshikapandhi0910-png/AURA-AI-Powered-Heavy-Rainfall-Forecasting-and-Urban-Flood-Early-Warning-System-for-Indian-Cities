@@ -1480,5 +1480,45 @@ a:hover { color: #a4f5e5; }
   line-height: 1.45;
 }
 
+/* Unknown Location Clean View */
+.clean-unknown-location-card {
+  margin-top: 14px;
+  padding: 20px;
+  background: rgba(10, 26, 29, 0.94);
+  border: 1px solid rgba(69, 224, 193, 0.32);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.clean-unknown-location-card .clean-temp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(69, 224, 193, 0.2);
+}
+.clean-unknown-location-card .clean-flood-row {
+  padding: 16px 18px;
+  background: rgba(16, 185, 129, 0.12);
+  border-left: 4px solid #10b981;
+  border-radius: 0 10px 10px 0;
+  margin-top: 12px;
+}
+.clean-unknown-location-card .clean-rain-row {
+  padding: 16px 18px;
+  border-radius: 0 10px 10px 0;
+  margin-top: 12px;
+}
+.clean-unknown-location-card .clean-rain-row.raining {
+  background: rgba(245, 158, 11, 0.12);
+  border-left: 4px solid #f59e0b;
+}
+.clean-unknown-location-card .clean-rain-row.dry {
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 4px solid #45e0c1;
+}
+
+
 
 

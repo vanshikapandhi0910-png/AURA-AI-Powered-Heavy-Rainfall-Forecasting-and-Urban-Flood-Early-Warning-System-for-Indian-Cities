@@ -91,8 +91,25 @@ window.AURA_NATIONWIDE_DATA = {
     const byState = DATA.localities.find(item => norm(item.state).includes(sQ) || sQ.includes(norm(item.state)));
     if (byState) return byState;
 
-    // Default to Mumbai Dadar (or Amritsar)
-    return DATA.localities[0];
+    // Location not in database: return clean unknown record with no_local_data flag
+    return {
+      locality: area || city || "Selected Point",
+      city: city || "Selected Area",
+      state: state || "",
+      latitude: Number(lat) || 22.0,
+      longitude: Number(lon) || 78.0,
+      elevation_m: 50.0,
+      terrain_type: "Regional terrain",
+      drainage_system: "Standard drainage",
+      drainage_rating: 3,
+      clogging_tendency: "Standard",
+      chronic_chokepoints: [],
+      past_flood_events: [],
+      resident_reviews: [],
+      clogged_under_rain: false,
+      travel_advisory: "Standard conditions apply; follow IMD forecasts.",
+      no_local_data: true
+    };
   };
 
   DATA.getStation = function(cityName) {
@@ -237,6 +254,12 @@ window.AURA_NATIONWIDE_DATA = {
 
     const displayLabel = [area || loc.locality, city || loc.city, state || loc.state].filter(Boolean).join(", ");
 
+    const isUnknown = Boolean(loc.no_local_data);
+    const isRaining = (rain.total_mm || 0) > 2.0 || Boolean(rain.rain_mm?.[0] > 0.5);
+    const summaryText = isUnknown
+      ? (isRaining ? "Itz raining and over raining may cause clogging" : "NO PREVIOUS FLOODS DETECTED")
+      : `${loc.locality} in ${loc.city} is characterized by ${loc.terrain_type.toLowerCase()} terrain with ${loc.drainage_system.toLowerCase()}. ${loc.clogged_under_rain ? 'Monsoon downpours frequently trigger acute waterlogging and vehicular chokepoints.' : 'Drainage systems maintain steady discharge under ordinary rain.'}`;
+
     return {
       location: {
         label: displayLabel,
@@ -259,19 +282,26 @@ window.AURA_NATIONWIDE_DATA = {
       },
       rainfall: rain,
       historical_context: {
+        has_past_records: !isUnknown,
         clogging_assessment: {
-          alert_level: alertLevel,
-          status_badge: alertLevel === "RED" ? "🔴 RED ALERT — SEVERE WATERLOGGING RISK" : (alertLevel === "YELLOW" ? "🟡 CAUTION — DRAINAGE CAPACITY MONITORED" : "🟢 GREEN — DRAINAGE CLEAR"),
-          summary: `${loc.locality} in ${loc.city} is characterized by ${loc.terrain_type.toLowerCase()} terrain with ${loc.drainage_system.toLowerCase()}. ${loc.clogged_under_rain ? 'Monsoon downpours frequently trigger acute waterlogging and vehicular chokepoints.' : 'Drainage systems maintain steady discharge under ordinary rain.'}`,
-          drainage_system: loc.drainage_system,
-          drainage_rating: loc.drainage_rating,
-          terrain_type: loc.terrain_type,
-          clogging_tendency: loc.clogging_tendency,
-          chronic_chokepoints: loc.chronic_chokepoints || [],
-          past_flood_events: loc.past_flood_events || [],
-          resident_reviews: loc.resident_reviews || [],
-          travel_advisory: loc.travel_advisory || "Follow local traffic police bypass advisories during downpours.",
-          is_raining: true
+          no_local_data: isUnknown,
+          has_past_records: !isUnknown,
+          alert_level: isUnknown ? (isRaining ? "YELLOW" : "GREEN") : alertLevel,
+          status_badge: isUnknown
+            ? (isRaining ? "🟡 CAUTION — ITZ RAINING" : "🟢 GREEN — NO PREVIOUS FLOODS DETECTED")
+            : (alertLevel === "RED" ? "🔴 RED ALERT — SEVERE WATERLOGGING RISK" : (alertLevel === "YELLOW" ? "🟡 CAUTION — DRAINAGE CAPACITY MONITORED" : "🟢 GREEN — DRAINAGE CLEAR")),
+          summary: summaryText,
+          drainage_system: isUnknown ? "Local municipal drainage" : loc.drainage_system,
+          drainage_rating: isUnknown ? 3 : loc.drainage_rating,
+          terrain_type: isUnknown ? "Regional terrain" : loc.terrain_type,
+          clogging_tendency: isUnknown ? "Standard" : loc.clogging_tendency,
+          chronic_chokepoints: isUnknown ? [] : (loc.chronic_chokepoints || []),
+          past_flood_events: isUnknown ? [] : (loc.past_flood_events || []),
+          resident_reviews: isUnknown ? [] : (loc.resident_reviews || []),
+          travel_advisory: isUnknown ? (isRaining ? "Itz raining and over raining may cause clogging" : "Standard conditions apply; follow IMD forecasts.") : (loc.travel_advisory || "Follow local traffic police bypass advisories during downpours."),
+          is_raining: isRaining,
+          temperature_c: rain.conditions?.temperature_c || 26.5,
+          temperature_source: "IMD Weather Observation"
         },
         travel_alarm: {
           should_alarm: isHighRisk,

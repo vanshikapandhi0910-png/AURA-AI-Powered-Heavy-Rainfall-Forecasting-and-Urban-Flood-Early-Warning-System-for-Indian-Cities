@@ -429,6 +429,7 @@
     }
 
     leafletMap.on("click", event => {
+      if (Date.now() - (window._auraPickerJustClosed || 0) < 800) return;
       if (event.originalEvent?.target?.closest("#windy-picker-card") || event.originalEvent?.target?.closest(".picker-close-btn")) return;
       showPointAlert(event.latlng.lat, event.latlng.lng);
     });
@@ -1064,6 +1065,63 @@
 
     // ── 2. Clogging & Drainage Assessment ────────────────────────
     const clogging = result.historical_context?.clogging_assessment || {};
+    const hasPastEvents = (clogging.past_flood_events?.length || 0) > 0;
+    const hasPastRecords = Boolean(clogging.has_past_records || result.historical_context?.has_past_records || hasPastEvents);
+    const noLocalData = clogging.no_local_data ?? (!hasPastRecords && !hasPastEvents);
+
+    if (noLocalData) {
+      // ══════════════════════════════════════════════════════════════════════════
+      // CLEAN, UNCLUTTERED DISPLAY FOR UNKNOWN / NON-DATABASE LOCATIONS
+      // ══════════════════════════════════════════════════════════════════════════
+      const cleanCard = document.createElement("div");
+      cleanCard.className = "clogging-status-card clean-unknown-location-card";
+      cleanCard.style.cssText = "margin-top:14px;padding:20px;background:rgba(10,26,29,0.92);border:1px solid rgba(69,224,193,0.3);border-radius:12px;display:flex;flex-direction:column;gap:14px;";
+
+      // 1. Temperature as per IMD
+      const imdTemp = clogging.temperature_c ?? lastRain?.imd_observation?.observed_max_c ?? lastRain?.current_conditions?.temperature_c ?? 26.5;
+      const tempSource = clogging.temperature_source || "India Meteorological Department (IMD)";
+      const tempRow = document.createElement("div");
+      tempRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(69,224,193,0.2);";
+      tempRow.innerHTML = `
+        <div>
+          <span style="font-size:0.75rem;color:#8cbfbb;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;display:block;">Temperature (as per IMD)</span>
+          <span style="font-size:0.78rem;color:#94a3b8;">${escapeHtml(tempSource)}</span>
+        </div>
+        <strong style="font-size:1.6rem;color:#45e0c1;font-weight:750;">${Number(imdTemp).toFixed(1)}°C</strong>
+      `;
+      cleanCard.appendChild(tempRow);
+
+      // 2. Historical Flood Detection Status
+      const floodRow = document.createElement("div");
+      floodRow.style.cssText = "padding:16px 18px;background:rgba(16,185,129,0.12);border-left:4px solid #10b981;border-radius:0 10px 10px 0;";
+      floodRow.innerHTML = `
+        <div style="font-size:1.05rem;color:#a7f3d0;font-weight:750;letter-spacing:0.03em;">🛡️ NO PREVIOUS FLOODS DETECTED</div>
+        <div style="font-size:0.82rem;color:#8cbfbb;margin-top:4px;">No historical flood or waterlogging records detected in prototype database for this location.</div>
+      `;
+      cleanCard.appendChild(floodRow);
+
+      // 3. Rain / Clogging Assessment as per IMD
+      const rainRow = document.createElement("div");
+      if (clogging.is_raining) {
+        rainRow.style.cssText = "padding:16px 18px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;";
+        rainRow.innerHTML = `
+          <div style="font-size:1.05rem;color:#fcd34d;font-weight:750;letter-spacing:0.02em;">🌧️ Itz raining and over raining may cause clogging</div>
+          <div style="font-size:0.82rem;color:#e2e8f0;margin-top:4px;">Active rainfall indicated as per IMD observations. Without local drainage infrastructure data on file, prolonged heavy downpours may lead to water clogging in low-lying pockets.</div>
+        `;
+      } else {
+        rainRow.style.cssText = "padding:14px 18px;background:rgba(255,255,255,0.03);border-left:4px solid #45e0c1;border-radius:0 10px 10px 0;";
+        rainRow.innerHTML = `
+          <div style="font-size:0.98rem;color:#e2e8f0;font-weight:650;">☀️ Clear / Dry Weather</div>
+          <div style="font-size:0.82rem;color:#8cbfbb;margin-top:3px;">No active rainfall reported as per IMD. Normal conditions prevail.</div>
+        `;
+      }
+      cleanCard.appendChild(rainRow);
+
+      card.appendChild(cleanCard);
+      target.appendChild(card);
+      return;
+    }
+
     const alertLevel = (clogging.alert_level || result.historical_context?.alert_level || "GREEN").toUpperCase();
 
     const cloggingCard = document.createElement("div");
@@ -1294,6 +1352,7 @@
 
   async function showPointAlert(lat, lon, source = "Map-selected coordinates") {
     const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    setActiveSearch(true);
     saveSelectedLocation(params, source);
     if (window.AURA_WINDY_ENGINE?.inspectPoint) {
       window.AURA_WINDY_ENGINE.inspectPoint(lat, lon, false);
@@ -1315,6 +1374,8 @@
       localStorage.setItem(SELECTED_LOCATION_KEY, JSON.stringify({
         params: params.toString(),
         label,
+        lat: params.get("lat") ? Number(params.get("lat")) : null,
+        lon: params.get("lon") ? Number(params.get("lon")) : null,
         savedAt: new Date().toISOString(),
       }));
       const note = document.getElementById("selected-location-note");
@@ -1523,7 +1584,7 @@
             }
           }
         },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
       );
     });
   }
@@ -1645,7 +1706,11 @@
       setMapStatus("Loading selected location…", false);
       const rain = await getData(`/api/rainfall?${saved.params}`);
       if (rain) renderRainfall(rain);
-      const grid = await getData(`/api/risk-grid?lat=${saved.lat || 28.6139}&lon=${saved.lon || 77.2090}`);
+      const savedLat = saved.params?.get("lat");
+      const savedLon = saved.params?.get("lon");
+      const gridLat = savedLat ? Number(savedLat) : 28.6139;
+      const gridLon = savedLon ? Number(savedLon) : 77.2090;
+      const grid = await getData(`/api/risk-grid?lat=${gridLat}&lon=${gridLon}`);
       if (grid) showMap(grid, spots);
     }
   }
