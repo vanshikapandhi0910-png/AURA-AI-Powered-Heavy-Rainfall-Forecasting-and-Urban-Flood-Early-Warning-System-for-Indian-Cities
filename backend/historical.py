@@ -402,7 +402,13 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
 
         return f"{w_str} {d_str} {cp_str} {h_str} {adv_str}"
 
-    clogging_summary = _create_summary()
+    # For locations with NO local flood data, override summary to keep it simple and accurate
+    no_local_data = not has_past_records
+    if no_local_data and is_raining:
+        clogging_summary = "It's raining and over raining may cause clogging."
+    else:
+        clogging_summary = _create_summary()
+
 
     current_rain_status = (
         "unavailable"

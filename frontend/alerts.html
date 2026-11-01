@@ -37,10 +37,16 @@
       </div>
       <p id="selected-location-note" class="small-note" aria-live="polite">Detailed civic drainage capacity, historical inundation events, river gauges, and resident ground truth.</p>
       
+      <div class="location-actions" style="margin: 10px 0 14px;">
+        <button type="button" class="btn btn-primary" id="device-location"><span aria-hidden="true">◎</span> Turn on device location</button>
+        <span class="or-label">OR</span>
+        <button type="button" class="btn btn-outline-light" id="manual-toggle" aria-expanded="false" aria-controls="manual-location">Enter manually</button>
+      </div>
+      <p class="small-note" id="location-note">Device location requires data connection. Manual search is fully available offline with complete India dataset.</p>
+      
       <div class="quick-locations" style="margin:10px 0 14px;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
           <span class="quick-locations-label" style="margin:0;">Quick select location dossier:</span>
-          <button type="button" class="btn btn-outline-light btn-sm" id="manual-toggle" aria-expanded="false" aria-controls="manual-location" style="font-size:0.75rem;padding:3px 10px;">🔍 Search any city / locality</button>
         </div>
         <div class="quick-pills-wrap">
           <button type="button" class="quick-pill" data-state="Maharashtra" data-city="Mumbai" data-area="Hindmata &amp; Milan Subway">Mumbai · Dadar</button>
@@ -117,7 +123,21 @@
         <option value="Srinagar"></option>
       </datalist>
 
-      <div id="alert-result" class="alert-result" aria-live="polite"><p class="small-note">Select a location above or choose from the dashboard to open its complete civic dossier.</p></div>
+      <div id="alert-result" class="alert-result" aria-live="polite">
+        <div class="search-prompt-card">
+          <div class="search-prompt-badge">⚡ AURA-FLOOD · CIVIC RISK DOSSIER</div>
+          <h2 class="search-prompt-title">SEARCH TO KNOW THE RISK</h2>
+          <p class="search-prompt-desc">No location selected. Search any Indian city or locality above, pick a hotspot pill, or turn on device location to screen localized flood risk, civic drainage capacity, and local ground-truth.</p>
+          <div class="search-prompt-actions">
+            <button type="button" class="btn btn-primary btn-sm prompt-device-btn">
+              <span>◎</span> Turn on device location
+            </button>
+            <button type="button" class="btn btn-outline-light btn-sm prompt-manual-btn">
+              🔍 Enter city or locality
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="alert-controls"><button type="button" id="sound-toggle" class="btn btn-outline-light">🔊 Travel Alarm Sound: Active</button><span class="small-note">Audible alarm triggers when rain or severe waterlogging/clogging is detected for your area.</span></div>
     </section>
 

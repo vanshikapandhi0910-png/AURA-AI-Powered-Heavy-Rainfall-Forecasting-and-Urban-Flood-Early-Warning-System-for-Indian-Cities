@@ -397,4 +397,15 @@ window.AURA_NATIONWIDE_DATA = {
     };
   };
 
+  window.findLocalitiesByProximity = function(lat, lon, maxDistanceKm = 60) {
+    if (!DATA?.localities) return [];
+    return DATA.localities
+      .map(loc => {
+        const d = Math.hypot(loc.latitude - lat, (loc.longitude - lon) * Math.cos(lat * Math.PI / 180)) * 111;
+        return { ...loc, distanceKm: d };
+      })
+      .filter(loc => loc.distanceKm <= maxDistanceKm)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  };
+
 })();

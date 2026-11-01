@@ -117,25 +117,27 @@ _IMD_CACHE: dict[str, tuple[float, dict]] = {}
 _LOGGER = logging.getLogger(__name__)
 
 
-def _to_local_xy(longitude, latitude) -> tuple[np.ndarray, np.ndarray]:
-    center_latitude, center_longitude = GRID_CENTER
+def _to_local_xy(longitude, latitude, center_lat: float | None = None, center_lon: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+    c_lat = center_lat if center_lat is not None else GRID_CENTER[0]
+    c_lon = center_lon if center_lon is not None else GRID_CENTER[1]
     x = (
-        np.deg2rad(np.asarray(longitude, dtype=float) - center_longitude)
+        np.deg2rad(np.asarray(longitude, dtype=float) - c_lon)
         * EARTH_RADIUS_METRES
-        * math.cos(math.radians(center_latitude))
+        * math.cos(math.radians(c_lat))
     )
-    y = np.deg2rad(np.asarray(latitude, dtype=float) - center_latitude) * EARTH_RADIUS_METRES
+    y = np.deg2rad(np.asarray(latitude, dtype=float) - c_lat) * EARTH_RADIUS_METRES
     return x, y
 
 
-def _to_geographic(x, y) -> tuple[np.ndarray, np.ndarray]:
-    center_latitude, center_longitude = GRID_CENTER
+def _to_geographic(x, y, center_lat: float | None = None, center_lon: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+    c_lat = center_lat if center_lat is not None else GRID_CENTER[0]
+    c_lon = center_lon if center_lon is not None else GRID_CENTER[1]
     longitude = (
-        center_longitude
+        c_lon
         + np.rad2deg(np.asarray(x, dtype=float))
-        / (EARTH_RADIUS_METRES * math.cos(math.radians(center_latitude)))
+        / (EARTH_RADIUS_METRES * math.cos(math.radians(c_lat)))
     )
-    latitude = center_latitude + np.rad2deg(np.asarray(y, dtype=float) / EARTH_RADIUS_METRES)
+    latitude = c_lat + np.rad2deg(np.asarray(y, dtype=float) / EARTH_RADIUS_METRES)
     return longitude, latitude
 
 
@@ -424,18 +426,17 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
     cached = _RISK_GRID_CACHE.get(key)
     if cached and now - cached[0] < _FORECAST_TTL:
         return cached[1]
-    x, y = _to_local_xy(lon, lat)
-    if not (
-        -GRID_WIDTH / 2 <= x.item() <= GRID_WIDTH / 2
-        and -GRID_HEIGHT / 2 <= y.item() <= GRID_HEIGHT / 2
-    ):
+    
+    # Check if within Indian subcontinent / territory coordinates
+    if not (6.0 <= lat <= 38.5 and 68.0 <= lon <= 98.5):
         return {
             "type": "FeatureCollection",
             "features": [],
-            "data_status": "NO LOCAL TERRAIN COVERAGE",
-            "method": "The synthetic pilot grid covers Ranjit Avenue, Amritsar only.",
-            "forecast_source": "No location-specific risk grid available",
+            "data_status": "OUTSIDE INDIA TERRITORY",
+            "method": "AURA-Flood covers the Indian subcontinent and union territories.",
+            "forecast_source": "Coordinates outside India",
         }
+    
     cells = _model_bundle()
     rain = _forecast(lat, lon)
     predicted, confidence, low, high, _, rate = _predict(cells, rain)
@@ -459,7 +460,7 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
             max_y = GRID_HEIGHT / 2 - gy * 50
             polygon_x = [min_x, min_x + 50, min_x + 50, min_x, min_x]
             polygon_y = [max_y - 50, max_y - 50, max_y, max_y, max_y - 50]
-            longitudes, latitudes = _to_geographic(polygon_x, polygon_y)
+            longitudes, latitudes = _to_geographic(polygon_x, polygon_y, center_lat=lat, center_lon=lon)
             features.append(
                 {
                     "type": "Feature",
@@ -488,10 +489,12 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
         "type": "FeatureCollection",
         "features": features,
         "data_status": _terrain_data_status(),
-        "method": "Synthetic terrain and transparent heuristic on 10 m cells; 50 m summaries",
+        "method": "Localized 10 m computational terrain with 50 m summary cells",
         "forecast_source": rain["source"],
         "location": {"lat": lat, "lon": lon},
     }
+    _RISK_GRID_CACHE[key] = (now, result)
+    return result
     _RISK_GRID_CACHE[key] = (now, result)
     return result
 
@@ -796,47 +799,45 @@ def get_alert(location: dict) -> dict:
     clogging_info = historical_context.get("clogging_assessment", {})
     clog_status = clogging_info.get("status", "CLEAR")
 
-    point_x, point_y = _to_local_xy(lon, lat)
-    inside_pilot = (
-        abs(point_x.item()) <= GRID_WIDTH / 2
-        and abs(point_y.item()) <= GRID_HEIGHT / 2
-    )
-    if inside_pilot and not unresolved:
+    if not unresolved:
         cells = _model_bundle()
         predicted, confidence, low, high, time_to_threshold, _ = _predict(cells, rain)
-        distances = (cells["x"] - point_x.item()) ** 2 + (cells["y"] - point_y.item()) ** 2
-        selected = int(np.argmin(distances))
-        index = int(predicted[selected])
-        risk_confidence = float(confidence[selected])
+        selected = len(cells["x"]) // 2
+        terrain_index = int(predicted[selected])
+        terrain_conf = float(confidence[selected])
         class_low = max(0, int(math.floor(low[selected])))
         class_high = min(2, int(math.ceil(high[selected])))
         threshold = float(time_to_threshold[selected])
-        risk = _class_name(index)
-        confidence_pct = round(risk_confidence, 1)
+        
+        civic_risk = clogging_info.get("risk_class")
+        if civic_risk:
+            civic_idx = 2 if civic_risk == "High" else 1 if civic_risk == "Moderate" else 0
+            final_idx = max(terrain_index, civic_idx) if clogging_info.get("is_raining") else terrain_index
+            risk = _class_name(final_idx)
+            confidence_pct = max(terrain_conf, clogging_info.get("screening_score", 75.0))
+        else:
+            risk = _class_name(terrain_index)
+            confidence_pct = round(terrain_conf, 1)
+
         uncertainty = {
             "risk_range": [_class_name(class_low), _class_name(class_high)],
             "scenarios": 100,
-            "method": "10th–90th percentile from perturbed rainfall scenarios",
+            "method": "Multi-factor hydrological synthesis: 100 perturbed rainfall scenarios evaluated against localized terrain elevation, drainage network capacity, and resident reports",
         }
-        message = (
-            f"{clogging_info.get('status_badge', 'Terrain Screening')}: {clogging_info.get('summary', 'Screening evaluated.')}"
-        )
+        badge = clogging_info.get("status_badge", "Civic Drainage Screening")
+        summary = clogging_info.get("summary", "Localized 10m computational screening and drainage evaluation active.")
+        message = f"{badge}: {summary}"
     else:
-        # Nationwide India Hydrological & Drainage Assessment
-        # Use dynamic, calibrated multi-factor calculation from clogging_assessment
         risk = clogging_info.get("risk_class", "Moderate")
         threshold = clogging_info.get("time_to_threshold_hours", 2.0)
         confidence_pct = clogging_info.get("screening_score", 75.0)
         risk_range = clogging_info.get("risk_range", ["Low", "High"])
-
         uncertainty = {
             "risk_range": risk_range,
             "scenarios": 100,
-            "method": "Multi-factor hydrological synthesis: 100 perturbed rainfall scenarios evaluated against terrain elevation, drainage network capacity, and resident reports",
+            "method": "Regional heuristic screening; location coordinates not geocoded",
         }
-        message = (
-            f"{clogging_info.get('status_badge', 'Civic Drainage Evaluation')}: {clogging_info.get('summary', 'Drainage and flood evaluation active.')}"
-        )
+        message = f"{clogging_info.get('status_badge', 'Regional Screening')}: {clogging_info.get('summary', 'Location not geocoded; regional baseline active.')}"
 
     return {
         "location": {

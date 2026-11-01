@@ -67,11 +67,31 @@
 
   const CACHE_PREFIX = "aura-flood:";
   const SELECTED_LOCATION_KEY = `${CACHE_PREFIX}selected-location`;
+  const ACTIVE_SEARCH_KEY = `${CACHE_PREFIX}active-search-session`;
   const SOUND_PREF_KEY = `${CACHE_PREFIX}sound-alarm-enabled`;
   let lastAlert = null;
   let communityReports = [];
   let soundEnabled = localStorage.getItem(SOUND_PREF_KEY) !== "false";
   let chartInstance = null;
+
+  function hasActiveSearch() {
+    try {
+      return sessionStorage.getItem(ACTIVE_SEARCH_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setActiveSearch(active = true) {
+    try {
+      if (active) {
+        sessionStorage.setItem(ACTIVE_SEARCH_KEY, "1");
+      } else {
+        sessionStorage.removeItem(ACTIVE_SEARCH_KEY);
+        localStorage.removeItem(SELECTED_LOCATION_KEY);
+      }
+    } catch (_) {}
+  }
   let lastRain = null;
   let leafletMap = null;
   let mapLayer = null;
@@ -288,6 +308,16 @@
 
   function resetToIndiaMap() {
     if (!leafletMap) return;
+    if (selectedMarker) {
+      selectedMarker.remove();
+      selectedMarker = null;
+    }
+    if (mapLayer) mapLayer.clearLayers();
+    selectedMapLocation = null;
+    currentGrid = null;
+    const picker = document.getElementById("windy-picker-card");
+    if (picker) picker.remove();
+    clearMapNotice();
     leafletMap.setView(INDIA_CENTER, INDIA_DEFAULT_ZOOM);
     const mapTitle = document.getElementById("map-title");
     if (mapTitle) mapTitle.textContent = "🗺️ India — Tap any city to check flood risk";
@@ -391,16 +421,16 @@
       resetBtn.title = "View all 28 States & 8 UTs on Political Map of India";
       resetBtn.addEventListener("click", (e) => {
         e.stopPropagation();
+        setActiveSearch(false);
         resetToIndiaMap();
+        renderDashboardEmptyState();
       });
       element.appendChild(resetBtn);
     }
 
     leafletMap.on("click", event => {
+      if (event.originalEvent?.target?.closest("#windy-picker-card") || event.originalEvent?.target?.closest(".picker-close-btn")) return;
       showPointAlert(event.latlng.lat, event.latlng.lng);
-      if (window.AURA_WINDY_ENGINE?.inspectPoint) {
-        window.AURA_WINDY_ENGINE.inspectPoint(event.latlng.lat, event.latlng.lng, false);
-      }
     });
     renderNationalNodes();
 
@@ -1144,6 +1174,11 @@
         });
         histWrap.appendChild(eventList);
         cloggingCard.appendChild(histWrap);
+      } else if (!clogging.has_past_records) {
+        const noFlood = document.createElement("div");
+        noFlood.style.cssText = "margin-top:12px;padding:8px 12px;background:rgba(16,185,129,0.08);border-left:3px solid #10b981;border-radius:0 6px 6px 0;font-size:.82rem;color:#a7f3d0;font-weight:600;letter-spacing:0.02em;";
+        noFlood.textContent = "✅ NO PREVIOUS FLOODS DETECTED";
+        cloggingCard.appendChild(noFlood);
       }
 
       // Traveler Advisory Notice
@@ -1521,6 +1556,7 @@
       showError(targetId, "Please enter a state, city, or locality to screen.");
       return;
     }
+    setActiveSearch(true);
     saveSelectedLocation(params, [params.get("area"), params.get("city"), params.get("state")].filter(Boolean).join(", "));
     try {
       await requestAlert(params, targetId);
@@ -1529,30 +1565,86 @@
     }
   }
 
+  function renderSearchToKnowCard() {
+    const target = document.getElementById("alert-result");
+    if (!target) return;
+    target.innerHTML = `
+      <div class="search-prompt-card">
+        <div class="search-prompt-badge">⚡ AURA-FLOOD · CIVIC RISK DOSSIER</div>
+        <h2 class="search-prompt-title">SEARCH TO KNOW THE RISK</h2>
+        <p class="search-prompt-desc">No location selected. Search any Indian city or locality above, pick a hotspot pill, or turn on device location to screen localized flood risk, civic drainage capacity, and local ground-truth.</p>
+        <div class="search-prompt-actions">
+          <button type="button" class="btn btn-primary btn-sm prompt-device-btn">
+            <span>◎</span> Turn on device location
+          </button>
+          <button type="button" class="btn btn-outline-light btn-sm prompt-manual-btn">
+            🔍 Enter city or locality
+          </button>
+        </div>
+      </div>
+    `;
+
+    target.querySelector(".prompt-device-btn")?.addEventListener("click", () => {
+      const devBtn = document.getElementById("device-location");
+      if (devBtn) devBtn.click();
+    });
+
+    target.querySelector(".prompt-manual-btn")?.addEventListener("click", () => {
+      const toggle = document.getElementById("manual-toggle");
+      const form = document.getElementById("manual-location");
+      if (form) {
+        form.hidden = false;
+        if (toggle) toggle.setAttribute("aria-expanded", "true");
+        form.scrollIntoView({ behavior: "smooth", block: "center" });
+        form.querySelector("input")?.focus();
+      }
+    });
+  }
+
+  function renderDashboardEmptyState() {
+    resetToIndiaMap();
+    const locResult = document.getElementById("location-result");
+    if (locResult) {
+      locResult.innerHTML = `
+        <div class="empty-state-banner">
+          <span>🗺️</span>
+          <div>
+            <strong>Indian Subcontinent Civic Explorer:</strong> Enter your city above, pick a hotspot, or turn on device location to check local waterlogging risk and drainage capacity.
+          </div>
+        </div>
+      `;
+    }
+    const totalNode = document.getElementById("rain-total");
+    const sourceNode = document.getElementById("rain-source");
+    const statusNode = document.getElementById("rain-status");
+    if (totalNode) totalNode.textContent = "—";
+    if (sourceNode) {
+      sourceNode.textContent = "WAITING FOR LOCATION";
+      sourceNode.classList.remove("simulated-chip");
+    }
+    if (statusNode) statusNode.textContent = "Search or detect a location to view 6-hour rainfall outlook.";
+    const tempNode = document.getElementById("current-temperature");
+    const weatherStatus = document.getElementById("current-weather-status");
+    if (tempNode) tempNode.textContent = "--";
+    if (weatherStatus) weatherStatus.textContent = "Select a location to inspect live weather";
+  }
+
   async function loadDashboard() {
     createLeafletMap();
     bindDatasetModal();
     const saved = readSelectedLocation();
-    const hasSelectedLocation = Boolean(saved);
-    if (hasSelectedLocation) setMapStatus("Loading selected location…", false);
-
-    // Only load city-specific rainfall when the user has a saved location
-    if (hasSelectedLocation) {
-      const rain = await getData(`/api/rainfall?${saved.params}`);
-      if (rain) renderRainfall(rain);
-    } else {
-      // No city selected: show a gentle India-wide placeholder (Delhi as neutral mid-India)
-      const rain = await getData("/api/rainfall?lat=20.5&lon=78.9&city=India");
-      if (rain) renderRainfall(rain);
-    }
+    const hasSearch = hasActiveSearch() && Boolean(saved);
 
     // Load waterlogging chokepoints
     const spotResult = await getData("/api/hotspots");
     const spots = renderHotspots(spotResult || { spots: SAMPLE_SPOTS });
 
-    if (!hasSelectedLocation) {
-      resetToIndiaMap();
+    if (!hasSearch) {
+      renderDashboardEmptyState();
     } else {
+      setMapStatus("Loading selected location…", false);
+      const rain = await getData(`/api/rainfall?${saved.params}`);
+      if (rain) renderRainfall(rain);
       const grid = await getData(`/api/risk-grid?lat=${saved.lat || 28.6139}&lon=${saved.lon || 77.2090}`);
       if (grid) showMap(grid, spots);
     }
@@ -1640,6 +1732,7 @@
         if (city) params.set("city", city);
         if (area) params.set("area", area);
         const label = [area, city, state].filter(Boolean).join(", ");
+        setActiveSearch(true);
         saveSelectedLocation(params, label);
         const targetId = document.body.dataset.page === "alerts" ? "alert-result" : "location-result";
         requestAlert(params, targetId);
@@ -1722,7 +1815,7 @@
   });
   window.addEventListener("offline", setConnectionStatus);
   window.addEventListener("storage", event => {
-    if (event.key === SELECTED_LOCATION_KEY && event.newValue) {
+    if (event.key === SELECTED_LOCATION_KEY && event.newValue && hasActiveSearch()) {
       loadSelectedLocation();
       renderExperienceLocation();
     }
@@ -1743,16 +1836,22 @@
   bindSoundToggle();
   bindExperienceForm();
   bindDatasetModal();
-  if (document.body.dataset.page === "dashboard") loadDashboard();
-  if (document.body.dataset.page === "alerts") {
-    loadCommunityReports();
-    const saved = readSelectedLocation();
-    if (!saved) {
-      const defaultParams = new URLSearchParams({ state: "Maharashtra", city: "Mumbai", area: "Hindmata & Milan Subway" });
-      requestAlert(defaultParams, "alert-result");
+  if (document.body.dataset.page === "dashboard") {
+    loadDashboard();
+    if (hasActiveSearch()) {
+      loadSelectedLocation();
+    } else {
+      renderDashboardEmptyState();
     }
   }
-  loadSelectedLocation();
+  if (document.body.dataset.page === "alerts") {
+    loadCommunityReports();
+    if (hasActiveSearch()) {
+      loadSelectedLocation();
+    } else {
+      renderSearchToKnowCard();
+    }
+  }
   window.setInterval(() => {
     if (document.visibilityState !== "visible") return;
     if (document.body.dataset.page === "alerts") loadCommunityReports();

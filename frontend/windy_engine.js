@@ -398,16 +398,17 @@
       seaState = "Inland Basin (0m Wave Swell)";
     }
 
-    const baseRain = spot ? spot.rain_rate_mmh : 6.5;
+    const isNearHotspot = Boolean(spot && distanceKm < 45);
+    const baseRain = isNearHotspot ? spot.rain_rate_mmh : 6.5;
     const rainRate = Number((baseRain * synopticFactor * (0.8 + 0.4 * Math.sin(lat * 3 + lon * 2))).toFixed(1));
     const rain6hAcc = Number((rainRate * 4.2).toFixed(1));
 
-    const baseWind = spot ? spot.wind_kmh : 24;
+    const baseWind = isNearHotspot ? spot.wind_kmh : 24;
     const windKmh = Math.round(baseWind * synopticFactor * modelVariance);
     const windGustKmh = Math.round(windKmh * 1.35 + 4);
-    const windDeg = spot ? spot.wind_deg : (lon < 76 ? 235 : 160);
+    const windDeg = isNearHotspot ? spot.wind_deg : (lon < 76 ? 235 : 160);
 
-    const baseFlood = spot ? spot.flood_score : 65;
+    const baseFlood = isNearHotspot ? spot.flood_score : 55;
     const floodScore = Math.min(98, Math.max(25, Math.round(baseFlood + (timeTideCycle > 0 ? 8 : -4) + (rainRate > 15 ? 12 : 0))));
 
     const distToLow1 = Math.hypot(lat - 18, (lon - 88) * 0.8);
@@ -415,19 +416,35 @@
 
     const tempC = Number((31.5 - (lat > 28 ? 3.5 : 0) - (rainRate > 10 ? 3.0 : 0) + Math.cos(hourOffset * 0.25) * 1.5).toFixed(1));
 
+    // Proximity lookup to India dataset for accurate local naming and advisories
+    let matchedLocality = null;
+    if (window.findLocalitiesByProximity) {
+      const prox = window.findLocalitiesByProximity(lat, lon);
+      if (prox && prox.length) matchedLocality = prox[0];
+    }
+
     let placeLabel = "";
-    if (spot && distanceKm < 45) {
+    if (isNearHotspot) {
       placeLabel = `${spot.name} (${spot.state})`;
+    } else if (matchedLocality) {
+      placeLabel = `${matchedLocality.locality}, ${matchedLocality.city} (${matchedLocality.state})`;
     } else if (isMarine) {
       if (lon < 74) placeLabel = `Arabian Sea Offshore Waters (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
       else if (lon > 80) placeLabel = `Bay of Bengal Offshore Sector (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
       else placeLabel = `Indian Ocean Marine Zone (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
     } else {
-      if (lat > 29.5 && lon > 77.0 && lon < 78.5) {
-        placeLabel = `Upper Ganga Basin / Roorkee Sector (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
-      } else {
-        placeLabel = `Indian Subcontinent Point (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
-      }
+      placeLabel = `Indian Subcontinent Point (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
+    }
+
+    let advisoryNote = "";
+    if (isNearHotspot) {
+      advisoryNote = spot.note;
+    } else if (matchedLocality) {
+      advisoryNote = matchedLocality.travel_advisory || `${matchedLocality.terrain_type}. Local drainage system: ${matchedLocality.drainage_system}.`;
+    } else if (isMarine) {
+      advisoryNote = "Marine coastal zone subject to monsoon swell and tidal lockouts.";
+    } else {
+      advisoryNote = "Inland hydrological basin. Follow local municipal drainage and weather advisories.";
     }
 
     const hourlyMeteogram = Array.from({ length: 12 }, (_, i) => {
@@ -466,7 +483,7 @@
       modelInfo: NWP_MODELS.find(m => m.id === modelId),
       hourOffset,
       hourlyMeteogram,
-      hotspotNote: spot?.note || (isMarine ? "Marine coastal zone subject to monsoon swell and tidal lockouts." : "Inland hydrological basin.")
+      hotspotNote: advisoryNote
     };
   }
 
@@ -878,6 +895,10 @@
       card.setAttribute("role", "dialog");
       card.setAttribute("aria-label", "Windy Weather & Marine Inspector");
       mapContainer.appendChild(card);
+      if (window.L && L.DomEvent) {
+        L.DomEvent.disableClickPropagation(card);
+        L.DomEvent.disableScrollPropagation(card);
+      }
     }
 
     updatePickerCard(data);
@@ -972,13 +993,29 @@
       </div>
     `;
 
-    card.querySelector("#windy-picker-close")?.addEventListener("click", () => {
-      card.remove();
-      if (state.pickerPin) {
-        state.pickerPin.remove();
-        state.pickerPin = null;
-      }
-    });
+    const closeBtn = card.querySelector("#windy-picker-close");
+    if (closeBtn) {
+      const handleClose = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          if (window.L && L.DomEvent) {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+          }
+        }
+        card.remove();
+        if (state.pickerPin) {
+          state.pickerPin.remove();
+          state.pickerPin = null;
+        }
+        state.pickerData = null;
+      };
+      closeBtn.addEventListener("click", handleClose);
+      closeBtn.addEventListener("touchend", handleClose, { passive: false });
+      closeBtn.addEventListener("pointerup", handleClose);
+    }
 
     card.querySelectorAll(".model-pill").forEach(pill => {
       pill.addEventListener("click", () => {
@@ -1146,6 +1183,7 @@
       });
 
       leafletMap.on("click", (e) => {
+        if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn")) return;
         inspectPoint(e.latlng.lat, e.latlng.lng);
       });
 
