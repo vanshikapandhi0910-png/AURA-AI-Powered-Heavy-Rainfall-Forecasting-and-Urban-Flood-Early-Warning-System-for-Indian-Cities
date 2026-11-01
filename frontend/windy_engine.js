@@ -408,8 +408,10 @@
     const windGustKmh = Math.round(windKmh * 1.35 + 4);
     const windDeg = isNearHotspot ? spot.wind_deg : (lon < 76 ? 235 : 160);
 
-    const baseFlood = isNearHotspot ? spot.flood_score : 55;
-    const floodScore = Math.min(98, Math.max(25, Math.round(baseFlood + (timeTideCycle > 0 ? 8 : -4) + (rainRate > 15 ? 12 : 0))));
+    const baseFlood = isNearHotspot ? spot.flood_score : 25;
+    const floodScore = isNearHotspot
+      ? Math.min(98, Math.max(25, Math.round(baseFlood + (timeTideCycle > 0 ? 8 : -4) + (rainRate > 15 ? 12 : 0))))
+      : Math.min(70, Math.max(15, Math.round(20 + (rainRate > 15 ? 35 : (rainRate > 5 ? 15 : 0)))));
 
     const distToLow1 = Math.hypot(lat - 18, (lon - 88) * 0.8);
     const pressureHpa = Math.round(996 + Math.min(22, distToLow1 * 1.8));
@@ -883,6 +885,35 @@
     updateLegendIndicator(metrics);
   }
 
+  window.closeWindyPicker = function(e) {
+    if (e) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        if (window.L && L.DomEvent) {
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+        }
+      } catch (_) {}
+    }
+    window._auraPickerJustClosed = Date.now();
+    const card = document.getElementById("windy-picker-card");
+    if (card) {
+      card.style.display = "none";
+      card.style.pointerEvents = "none";
+      setTimeout(() => {
+        try { card.remove(); } catch (_) {}
+      }, 600);
+    }
+    if (state.pickerPin) {
+      try { state.pickerPin.remove(); } catch (_) {}
+      state.pickerPin = null;
+    }
+    state.pickerData = null;
+    return false;
+  };
+
   function renderPickerCard(data) {
     const mapContainer = document.getElementById("risk-map");
     if (!mapContainer) return;
@@ -921,7 +952,7 @@
           <h3 class="picker-place">${data.placeLabel}</h3>
           <span class="picker-coords">${data.lat}°N, ${data.lon}°E · ${data.elevationM}m ASL</span>
         </div>
-        <button type="button" class="picker-close-btn" id="windy-picker-close" aria-label="Close picker card">✕</button>
+        <button type="button" class="picker-close-btn" id="windy-picker-close" onclick="return window.closeWindyPicker(event);" ontouchstart="return window.closeWindyPicker(event);" ontouchend="return window.closeWindyPicker(event);" aria-label="Close picker card">✕</button>
       </div>
 
       <div class="picker-model-selector" role="tablist">
@@ -999,26 +1030,8 @@
         L.DomEvent.disableClickPropagation(closeBtn);
         L.DomEvent.disableScrollPropagation(closeBtn);
       }
-      const handleClose = (e) => {
-        window._auraPickerJustClosed = Date.now();
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-          if (window.L && L.DomEvent) {
-            L.DomEvent.stopPropagation(e);
-            L.DomEvent.preventDefault(e);
-          }
-        }
-        card.remove();
-        if (state.pickerPin) {
-          state.pickerPin.remove();
-          state.pickerPin = null;
-        }
-        state.pickerData = null;
-      };
-      ["click", "pointerdown", "pointerup", "touchstart", "touchend", "mousedown"].forEach(evt => {
-        closeBtn.addEventListener(evt, handleClose, { passive: false });
+      ["click", "pointerdown", "pointerup", "touchstart", "touchend"].forEach(evt => {
+        closeBtn.addEventListener(evt, window.closeWindyPicker, { passive: false });
       });
     }
 
@@ -1188,7 +1201,7 @@
       });
 
       leafletMap.on("click", (e) => {
-        if (Date.now() - (window._auraPickerJustClosed || 0) < 800) return;
+        if (Date.now() - (window._auraPickerJustClosed || 0) < 1500) return;
         if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn")) return;
         inspectPoint(e.latlng.lat, e.latlng.lng);
       });

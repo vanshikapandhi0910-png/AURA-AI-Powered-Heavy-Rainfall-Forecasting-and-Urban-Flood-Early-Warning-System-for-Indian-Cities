@@ -211,14 +211,15 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
                 if _report_matches(report, location)
             ]
 
-    # Query comprehensive India-wide dataset covering all 28 states and 8 UTs
-    india_matches = find_matching_localities(
-        query_text=location.get("area") or location.get("label"),
-        city=location.get("city"),
-        state=location.get("state"),
-        lat=location.get("lat"),
-        lon=location.get("lon"),
-    )
+    is_device = location.get("is_device_location", False) or "Device Location" in location.get("label", "")
+    india_matches = []
+    if not is_device:
+        # Query comprehensive India-wide dataset covering all 28 states and 8 UTs for explicit queries
+        india_matches = find_matching_localities(
+            query_text=location.get("area"),
+            city=location.get("city"),
+            state=location.get("state"),
+        )
 
     combined_records = []
     # Add CSV matches first
@@ -410,15 +411,21 @@ def get_historical_flood_context(location: dict, rainfall: dict) -> dict:
         loc_lat = float(location.get("lat") or 22.0)
         resolved_temp = 18.0 if loc_lat > 32 else (24.5 if loc_lat > 28 else 29.5)
 
-    # For locations with NO local flood data in database, keep it clean and accurate as requested:
-    no_local_data = not has_past_records and not has_exact_locality_records
+    # For locations with NO local flood data in database (or detected device location), keep it clean and accurate as requested:
+    no_local_data = (not has_past_records and not has_exact_locality_records) or is_device
     if no_local_data:
         if is_raining:
             clogging_summary = "Itz raining and over raining may cause clogging"
             clogging_badge = "🟡 CAUTION — ITZ RAINING"
+            alert_level = "YELLOW"
+            clogging_status = "CAUTION"
+            risk_class = "Moderate"
         else:
             clogging_summary = "NO PREVIOUS FLOODS DETECTED"
             clogging_badge = "🟢 GREEN — NO PREVIOUS FLOODS DETECTED"
+            alert_level = "GREEN"
+            clogging_status = "CLEAR"
+            risk_class = "Low"
     else:
         clogging_summary = _create_summary()
 

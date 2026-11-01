@@ -54,42 +54,25 @@ window.AURA_NATIONWIDE_DATA = {
   }
 
   DATA.findLocality = function(state, city, area, lat, lon) {
-    // Coordinates match first if available
-    if (lat != null && lon != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
-      const targetLat = Number(lat);
-      const targetLon = Number(lon);
-      let bestNear = null;
-      let minDistance = Infinity;
+    // Exact text query match if area or city provided
+    if (area || city) {
+      let best = null;
+      let bestScore = -1;
       DATA.localities.forEach(item => {
-        const d = Math.hypot(item.latitude - targetLat, (item.longitude - targetLon) * Math.cos(targetLat * Math.PI / 180));
-        if (d < minDistance) {
-          minDistance = d;
-          bestNear = item;
+        const score = matchScore(item, state, city, area);
+        if (score > bestScore) {
+          bestScore = score;
+          best = item;
         }
       });
-      if (bestNear && minDistance <= 0.6) return bestNear;
-    }
+      if (best && bestScore >= 40) return best;
 
-    // Text query match
-    let best = null;
-    let bestScore = -1;
-    DATA.localities.forEach(item => {
-      const score = matchScore(item, state, city, area);
-      if (score > bestScore) {
-        bestScore = score;
-        best = item;
+      const cQ = norm(city);
+      if (cQ) {
+        const byCity = DATA.localities.find(item => norm(item.city) === cQ);
+        if (byCity) return byCity;
       }
-    });
-    if (best && bestScore > 0) return best;
-
-    // Fallback: check city center or default metropolis
-    const cQ = norm(city);
-    const byCity = DATA.localities.find(item => norm(item.city).includes(cQ) || cQ.includes(norm(item.city)));
-    if (byCity) return byCity;
-
-    const sQ = norm(state);
-    const byState = DATA.localities.find(item => norm(item.state).includes(sQ) || sQ.includes(norm(item.state)));
-    if (byState) return byState;
+    }
 
     // Location not in database: return clean unknown record with no_local_data flag
     return {
@@ -427,7 +410,7 @@ window.AURA_NATIONWIDE_DATA = {
     };
   };
 
-  window.findLocalitiesByProximity = function(lat, lon, maxDistanceKm = 60) {
+  window.findLocalitiesByProximity = function(lat, lon, maxDistanceKm = 4) {
     if (!DATA?.localities) return [];
     return DATA.localities
       .map(loc => {

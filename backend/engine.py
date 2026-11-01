@@ -643,18 +643,13 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
     if lat is not None and lon is not None:
         if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError("Enter valid latitude and longitude coordinates.")
-        # Proximity lookup to nearest known locality in India flood database
-        prox_matches = find_matching_localities(lat=lat, lon=lon)
-        if prox_matches:
-            near = prox_matches[0]
-            dist_sq = (near["latitude"] - lat) ** 2 + (near["longitude"] - lon) ** 2
-            if dist_sq <= 0.45**2:  # within ~50 km
-                label = f"{near['locality']}, {near['city']} ({near['state']}) · Device Location"
-                return lat, lon, label, False
+        if area or city:
+            parts = [p.strip() for p in (area, (city or "").title(), (state or "").title()) if p and p.strip()]
+            return lat, lon, f"{', '.join(parts)} · Device Location", False
         city_nearby = _nearest_city_name(lat, lon)
         if city_nearby:
-            return lat, lon, f"Near {city_nearby} · Coordinates ({lat:.4f}, {lon:.4f})", False
-        return lat, lon, f"Selected coordinates ({lat:.5f}, {lon:.5f})", False
+            return lat, lon, f"{city_nearby} ({lat:.4f}°N, {lon:.4f}°E) · Device Location", False
+        return lat, lon, f"Device Location ({lat:.4f}°N, {lon:.4f}°E)", False
     if (lat is None) != (lon is None):
         raise ValueError("Latitude and longitude must be supplied together.")
     
@@ -755,13 +750,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
     inferred_city = (city or "").strip()
     inferred_state = (state or "").strip()
     if not inferred_city:
-        prox = find_matching_localities(lat=point_lat, lon=point_lon)
-        if prox:
-            inferred_city = prox[0]["city"]
-            if not inferred_state:
-                inferred_state = prox[0].get("state", "")
-        else:
-            inferred_city = _nearest_city_name(point_lat, point_lon) or ""
+        inferred_city = _nearest_city_name(point_lat, point_lon) or ""
 
     if not inferred_state and inferred_city:
         c_norm = _norm(inferred_city)
@@ -771,6 +760,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
                 break
 
     is_state_level = not city and bool(state)
+    is_device = lat is not None and lon is not None
 
     return {
         "lat": point_lat,
@@ -782,6 +772,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
         "label": label,
         "approximate": approximate,
         "is_state_level": is_state_level,
+        "is_device_location": is_device,
     }
 
 

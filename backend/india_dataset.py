@@ -2043,11 +2043,6 @@ def find_matching_localities(
                 results.append(loc)
                 continue
 
-        # 4. Proximity match if lat/lon provided (within ~65 km)
-        if lat is not None and lon is not None:
-            dist_sq = (loc["latitude"] - lat) ** 2 + (loc["longitude"] - lon) ** 2
-            if dist_sq <= 0.6**2:
-                results.append(loc)
 
     # 5. Optional State fallback ONLY if explicitly allowed and no city was specified or matched
     if not results and norm_state and allow_state_fallback:

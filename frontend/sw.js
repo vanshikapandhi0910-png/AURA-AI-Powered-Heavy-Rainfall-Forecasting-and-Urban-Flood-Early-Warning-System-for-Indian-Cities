@@ -1,11 +1,13 @@
 /* Cache the small app shell; cache vendors and API responses opportunistically. */
-const CACHE_NAME = "aura-flood-v18";
+const CACHE_NAME = "aura-flood-v22";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/alerts.html",
   "/styles.css",
   "/app.js",
+  "/india_data.js",
+  "/windy_engine.js",
   "/manifest.json",
 ];
 const VENDOR_ASSETS = [

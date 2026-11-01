@@ -429,7 +429,7 @@
     }
 
     leafletMap.on("click", event => {
-      if (Date.now() - (window._auraPickerJustClosed || 0) < 800) return;
+      if (Date.now() - (window._auraPickerJustClosed || 0) < 1500) return;
       if (event.originalEvent?.target?.closest("#windy-picker-card") || event.originalEvent?.target?.closest(".picker-close-btn")) return;
       showPointAlert(event.latlng.lat, event.latlng.lng);
     });
@@ -1350,11 +1350,14 @@
   }
 
 
-  async function showPointAlert(lat, lon, source = "Map-selected coordinates") {
+  async function showPointAlert(lat, lon, source = "Map-selected coordinates", city = "", state = "", area = "", shouldInspect = false) {
     const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    if (city) params.set("city", city);
+    if (state) params.set("state", state);
+    if (area) params.set("area", area);
     setActiveSearch(true);
     saveSelectedLocation(params, source);
-    if (window.AURA_WINDY_ENGINE?.inspectPoint) {
+    if (shouldInspect && window.AURA_WINDY_ENGINE?.inspectPoint) {
       window.AURA_WINDY_ENGINE.inspectPoint(lat, lon, false);
     }
     const targetId = document.body.dataset.page === "alerts" ? "alert-result" : "location-result";
@@ -1563,13 +1566,41 @@
       button.disabled = true;
       button.textContent = "Finding your location…";
       navigator.geolocation.getCurrentPosition(
-        position => {
+        async position => {
           syncLocationNetwork();
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
           const accuracy = Math.round(position.coords.accuracy);
+          button.textContent = "Detecting locality…";
+
+          let placeName = `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`;
+          let detectedCity = "";
+          let detectedState = "";
+          let detectedArea = "";
+
+          try {
+            const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { signal: AbortSignal.timeout(2500) });
+            if (r.ok) {
+              const geo = await r.json();
+              detectedArea = geo.locality || geo.subLocality || geo.neighbourhood || "";
+              detectedCity = geo.city || geo.localityInfo?.administrative?.[2]?.name || "";
+              detectedState = geo.principalSubdivision || "";
+              const labelParts = [detectedArea, detectedCity, detectedState].filter(Boolean);
+              if (labelParts.length) {
+                placeName = `${labelParts.join(", ")} · Device Location`;
+              }
+            }
+          } catch (_) {}
+
+          button.textContent = "Turn on device location";
           showPointAlert(
-            position.coords.latitude,
-            position.coords.longitude,
-            `Device location detected (approximately ${accuracy} m accuracy)`,
+            lat,
+            lon,
+            placeName,
+            detectedCity,
+            detectedState,
+            detectedArea,
+            false
           );
         },
         error => {
