@@ -1,5 +1,5 @@
 /* Cache the small app shell; cache vendors and API responses opportunistically. */
-const CACHE_NAME = "aura-flood-v22";
+const CACHE_NAME = "aura-flood-v23";
 const APP_SHELL = [
   "/",
   "/index.html",

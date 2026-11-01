@@ -379,9 +379,6 @@
     if (leafletMap) {
       leafletMap.flyTo([lat, lon], 14, { duration: 1.2 });
     }
-    if (window.AURA_WINDY_ENGINE?.inspectPoint) {
-      window.AURA_WINDY_ENGINE.inspectPoint(lat, lon, false);
-    }
     showPointAlert(lat, lon, `${city}, ${state}`);
   };
 

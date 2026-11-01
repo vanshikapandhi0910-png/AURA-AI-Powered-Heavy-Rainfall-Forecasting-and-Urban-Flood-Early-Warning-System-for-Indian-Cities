@@ -1200,10 +1200,12 @@
         resizeParticleCanvas();
       });
 
+      // Map clicks do NOT auto-open the picker card.
+      // The picker only opens via explicit coastal hotspot pills.
+      // This prevents the inspector card from blocking the civic risk map.
       leafletMap.on("click", (e) => {
-        if (Date.now() - (window._auraPickerJustClosed || 0) < 1500) return;
+        // swallow clicks that land on the card itself to prevent propagation
         if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn")) return;
-        inspectPoint(e.latlng.lat, e.latlng.lng);
       });
 
       const urlConfig = parseWindyUrlParameters();
