@@ -644,8 +644,16 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
         if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError("Enter valid latitude and longitude coordinates.")
         if area or city:
-            parts = [p.strip() for p in (area, (city or "").title(), (state or "").title()) if p and p.strip()]
-            return lat, lon, f"{', '.join(parts)} · Device Location", False
+            raw = [area, (city or "").title(), (state or "").title()]
+            seen: set[str] = set()
+            parts: list[str] = []
+            for p in raw:
+                if p and p.strip():
+                    key = p.strip().lower()
+                    if key not in seen:
+                        seen.add(key)
+                        parts.append(p.strip())
+            return lat, lon, f"{', '.join(parts)} ({lat:.4f}°N, {lon:.4f}°E) · Device Location", False
         city_nearby = _nearest_city_name(lat, lon)
         if city_nearby:
             return lat, lon, f"{city_nearby} ({lat:.4f}°N, {lon:.4f}°E) · Device Location", False

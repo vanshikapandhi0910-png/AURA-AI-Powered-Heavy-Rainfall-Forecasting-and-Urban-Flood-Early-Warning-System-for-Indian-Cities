@@ -671,6 +671,11 @@
     dock.setAttribute("role", "toolbar");
     dock.setAttribute("aria-label", "Windy Meteorological Layers");
 
+    if (window.L && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(dock);
+      L.DomEvent.disableScrollPropagation(dock);
+    }
+
     const titlePill = document.createElement("div");
     titlePill.className = "layer-dock-header";
     titlePill.innerHTML = `<span>LAYERS</span><span class="windy-badge" style="background:#45e0c1;color:#0b2025;font-weight:750;">LIVE</span>`;
@@ -687,9 +692,12 @@
         <span class="layer-icon">${cfg.icon}</span>
         <span class="layer-text">${cfg.name.split(" ")[0]}</span>
       `;
-      btn.addEventListener("click", () => {
+      const onLayer = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         setLayer(layerKey);
-      });
+      };
+      btn.addEventListener("click", onLayer);
+      btn.addEventListener("touchend", onLayer, { passive: false });
       dock.appendChild(btn);
     });
 
@@ -706,9 +714,14 @@
     timelineBar.setAttribute("role", "region");
     timelineBar.setAttribute("aria-label", "Forecast Timeline Player");
 
+    if (window.L && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(timelineBar);
+      L.DomEvent.disableScrollPropagation(timelineBar);
+    }
+
     timelineBar.innerHTML = `
       <div class="timeline-controls">
-        <button type="button" id="windy-play-btn" class="windy-control-btn play-btn" title="Play forecast animation">
+        <button type="button" id="windy-play-btn" class="windy-control-btn play-btn" onclick="if(window.AURA_WINDY_ENGINE?.togglePlay)window.AURA_WINDY_ENGINE.togglePlay(event);" title="Play forecast animation">
           <span class="play-icon">▶</span>
         </button>
         <button type="button" id="windy-prev-step" class="windy-control-btn step-btn" title="Previous 3-hour step">
@@ -744,34 +757,71 @@
       tick.className = `timeline-tick ${idx === 0 ? "active" : ""}`;
       tick.dataset.index = idx;
       tick.innerHTML = `<span>${step.shortLabel}</span>`;
-      tick.addEventListener("click", () => setTimelineIndex(idx));
+      const onTick = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        setTimelineIndex(idx);
+      };
+      tick.addEventListener("click", onTick);
+      tick.addEventListener("touchend", onTick, { passive: false });
       ticksContainer.appendChild(tick);
     });
 
     const playBtn = timelineBar.querySelector("#windy-play-btn");
-    playBtn.addEventListener("click", togglePlayback);
+    if (playBtn) {
+      if (window.L && L.DomEvent) L.DomEvent.disableClickPropagation(playBtn);
+      const onPlay = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        togglePlayback();
+      };
+      playBtn.addEventListener("click", onPlay);
+      playBtn.addEventListener("touchend", onPlay, { passive: false });
+    }
 
     const prevBtn = timelineBar.querySelector("#windy-prev-step");
-    prevBtn.addEventListener("click", () => {
-      setTimelineIndex(Math.max(0, state.activeTimelineIndex - 1));
-    });
+    if (prevBtn) {
+      if (window.L && L.DomEvent) L.DomEvent.disableClickPropagation(prevBtn);
+      const onPrev = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        setTimelineIndex(Math.max(0, state.activeTimelineIndex - 1));
+      };
+      prevBtn.addEventListener("click", onPrev);
+      prevBtn.addEventListener("touchend", onPrev, { passive: false });
+    }
 
     const nextBtn = timelineBar.querySelector("#windy-next-step");
-    nextBtn.addEventListener("click", () => {
-      setTimelineIndex(Math.min(TIMELINE_STEPS.length - 1, state.activeTimelineIndex + 1));
-    });
+    if (nextBtn) {
+      if (window.L && L.DomEvent) L.DomEvent.disableClickPropagation(nextBtn);
+      const onNext = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        setTimelineIndex(Math.min(TIMELINE_STEPS.length - 1, state.activeTimelineIndex + 1));
+      };
+      nextBtn.addEventListener("click", onNext);
+      nextBtn.addEventListener("touchend", onNext, { passive: false });
+    }
 
     const slider = timelineBar.querySelector("#windy-timeline-slider");
-    slider.addEventListener("input", (e) => {
-      setTimelineIndex(Number(e.target.value));
-    });
+    if (slider) {
+      if (window.L && L.DomEvent) L.DomEvent.disableClickPropagation(slider);
+      slider.addEventListener("input", (e) => {
+        setTimelineIndex(Number(e.target.value));
+      });
+      slider.addEventListener("change", (e) => {
+        setTimelineIndex(Number(e.target.value));
+      });
+    }
 
     const particleToggle = timelineBar.querySelector("#windy-particle-toggle");
-    particleToggle.addEventListener("click", () => {
-      state.particlesEnabled = !state.particlesEnabled;
-      particleToggle.classList.toggle("active", state.particlesEnabled);
-      particleToggle.innerHTML = `<span>🌀 Streamlines: ${state.particlesEnabled ? "ON" : "OFF"}</span>`;
-    });
+    if (particleToggle) {
+      if (window.L && L.DomEvent) L.DomEvent.disableClickPropagation(particleToggle);
+      const onToggle = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        state.particlesEnabled = !state.particlesEnabled;
+        particleToggle.classList.toggle("active", state.particlesEnabled);
+        particleToggle.innerHTML = `<span>🌀 Streamlines: ${state.particlesEnabled ? "ON" : "OFF"}</span>`;
+      };
+      particleToggle.addEventListener("click", onToggle);
+      particleToggle.addEventListener("touchend", onToggle, { passive: false });
+    }
   }
 
   function createColorLegendBar() {
@@ -783,6 +833,11 @@
     legendBar.className = "windy-legend-bar";
     legendBar.setAttribute("role", "note");
     legendBar.setAttribute("aria-label", "Layer Color Scale");
+
+    if (window.L && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(legendBar);
+      L.DomEvent.disableScrollPropagation(legendBar);
+    }
 
     mapContainer.appendChild(legendBar);
     updateColorLegend();
@@ -828,6 +883,11 @@
     bar.id = "windy-hotspots-bar";
     bar.className = "windy-hotspots-bar";
 
+    if (window.L && L.DomEvent) {
+      L.DomEvent.disableClickPropagation(bar);
+      L.DomEvent.disableScrollPropagation(bar);
+    }
+
     bar.innerHTML = `
       <div class="hotspots-scroll-wrap">
         <span class="hotspots-tag">🌊 COASTAL &amp; INLAND MONITORING:</span>
@@ -844,11 +904,14 @@
     mapContainer.appendChild(bar);
 
     bar.querySelectorAll(".windy-spot-pill").forEach(pill => {
-      pill.addEventListener("click", () => {
+      const onPill = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         const lat = Number(pill.dataset.lat);
         const lon = Number(pill.dataset.lon);
         inspectPoint(lat, lon, true);
-      });
+      };
+      pill.addEventListener("click", onPill);
+      pill.addEventListener("touchend", onPill, { passive: false });
     });
   }
 
@@ -1185,6 +1248,7 @@
 
   // --- 9. PUBLIC INITIALIZER ---
   window.AURA_WINDY_ENGINE = {
+    togglePlay: () => togglePlayback(),
     init: (leafletMap) => {
       if (!leafletMap) return;
       state.map = leafletMap;
@@ -1200,12 +1264,11 @@
         resizeParticleCanvas();
       });
 
-      // Map clicks do NOT auto-open the picker card.
-      // The picker only opens via explicit coastal hotspot pills.
-      // This prevents the inspector card from blocking the civic risk map.
+      // Map click inspects coordinates and displays the weather & marine inspector card
       leafletMap.on("click", (e) => {
-        // swallow clicks that land on the card itself to prevent propagation
-        if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn")) return;
+        if (Date.now() - (window._auraPickerJustClosed || 0) < 1200) return;
+        if (e.originalEvent?.target?.closest("#windy-picker-card") || e.originalEvent?.target?.closest(".picker-close-btn") || e.originalEvent?.target?.closest("#windy-timeline-bar") || e.originalEvent?.target?.closest("#windy-layer-dock") || e.originalEvent?.target?.closest("#windy-quick-hotspots")) return;
+        inspectPoint(e.latlng.lat, e.latlng.lng);
       });
 
       const urlConfig = parseWindyUrlParameters();

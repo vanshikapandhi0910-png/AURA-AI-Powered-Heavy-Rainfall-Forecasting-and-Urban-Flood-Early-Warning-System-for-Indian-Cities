@@ -1576,16 +1576,52 @@
           let detectedArea = "";
 
           try {
-            const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { signal: AbortSignal.timeout(2500) });
-            if (r.ok) {
-              const geo = await r.json();
-              detectedArea = geo.locality || geo.subLocality || geo.neighbourhood || "";
-              detectedCity = geo.city || geo.localityInfo?.administrative?.[2]?.name || "";
-              detectedState = geo.principalSubdivision || "";
-              const labelParts = [detectedArea, detectedCity, detectedState].filter(Boolean);
-              if (labelParts.length) {
-                placeName = `${labelParts.join(", ")} · Device Location`;
+            let gotDetailed = false;
+            // 1. Try OpenStreetMap Nominatim for exact neighbourhood/suburb
+            try {
+              const nomRes = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+                { signal: AbortSignal.timeout(2800), headers: { "Accept": "application/json" } }
+              );
+              if (nomRes.ok) {
+                const nom = await nomRes.json();
+                const addr = nom.address || {};
+                detectedArea = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.quarter || addr.subdistrict || "";
+                detectedCity = addr.city || addr.town || addr.municipality || addr.county || "";
+                detectedState = addr.state || "";
+                gotDetailed = Boolean(detectedCity || detectedArea);
               }
+            } catch (_) {}
+
+            // 2. Fallback to BigDataCloud reverse geocode
+            if (!gotDetailed) {
+              const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { signal: AbortSignal.timeout(3000) });
+              if (r.ok) {
+                const geo = await r.json();
+                const subLocale = geo.locality || geo.subLocality || geo.neighbourhood || "";
+                detectedCity = geo.city || geo.principalSubdivision || "";
+                detectedState = geo.principalSubdivision || "";
+                const informative = geo.localityInfo?.informative || [];
+                const finest = informative
+                  .filter(i => i.name && i.name !== detectedCity && i.name !== detectedState)
+                  .sort((a, b) => (b.order || 0) - (a.order || 0))[0];
+                detectedArea = (finest?.name) || (subLocale !== detectedCity ? subLocale : "") || "";
+              }
+            }
+
+            // Deduplicate label parts and append precise coordinates
+            const rawParts = [detectedArea, detectedCity, detectedState].filter(Boolean);
+            const seen = new Set();
+            const labelParts = rawParts.filter(p => {
+              const k = p.trim().toLowerCase();
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            });
+            if (labelParts.length) {
+              placeName = `${labelParts.join(", ")} (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E) · Device Location`;
+            } else {
+              placeName = `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`;
             }
           } catch (_) {}
 
