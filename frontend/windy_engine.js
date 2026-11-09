@@ -965,9 +965,7 @@
     if (card) {
       card.style.display = "none";
       card.style.pointerEvents = "none";
-      setTimeout(() => {
-        try { card.remove(); } catch (_) {}
-      }, 600);
+      try { card.remove(); } catch (_) {}
     }
     if (state.pickerPin) {
       try { state.pickerPin.remove(); } catch (_) {}
@@ -994,6 +992,8 @@
         L.DomEvent.disableScrollPropagation(card);
       }
     }
+    card.style.display = "block";
+    card.style.pointerEvents = "auto";
 
     updatePickerCard(data);
   }

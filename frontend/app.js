@@ -426,9 +426,9 @@
     }
 
     leafletMap.on("click", event => {
-      if (Date.now() - (window._auraPickerJustClosed || 0) < 1500) return;
-      if (event.originalEvent?.target?.closest("#windy-picker-card") || event.originalEvent?.target?.closest(".picker-close-btn")) return;
-      showPointAlert(event.latlng.lat, event.latlng.lng);
+      if (Date.now() - (window._auraPickerJustClosed || 0) < 1200) return;
+      if (event.originalEvent?.target?.closest("#windy-picker-card") || event.originalEvent?.target?.closest(".picker-close-btn") || event.originalEvent?.target?.closest("#windy-timeline-bar") || event.originalEvent?.target?.closest("#windy-layer-dock") || event.originalEvent?.target?.closest("#windy-hotspots-bar")) return;
+      showPointAlert(event.latlng.lat, event.latlng.lng, "Map-selected coordinates", "", "", "", true);
     });
     renderNationalNodes();
 
@@ -1625,7 +1625,8 @@
             }
           } catch (_) {}
 
-          button.textContent = "Turn on device location";
+          button.disabled = false;
+          button.innerHTML = '<span aria-hidden="true">📍</span> Location Detected';
           showPointAlert(
             lat,
             lon,
@@ -1638,6 +1639,8 @@
         },
         error => {
           syncLocationNetwork();
+          button.disabled = false;
+          button.innerHTML = '<span aria-hidden="true">◎</span> Turn on device location';
           if (note) {
             if (error.code === 1) {
               note.textContent = `Location permission was not granted${error.message ? ` (${error.message})` : ""}. Allow location access for this site in your browser settings, or enter a location manually.`;
