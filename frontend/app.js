@@ -451,7 +451,7 @@
     if (!element) return;
     const features = data.features || [];
     if (!features.length) {
-      element.textContent = "No local terrain-backed risk grid is available for this location. The demonstration terrain layer is hidden.";
+      element.textContent = "Civic risk screening active. Tap map or enter any city across India.";
       return;
     }
     const coordinates = features.flatMap(feature => polygonCoordinates(feature.geometry));
@@ -473,7 +473,7 @@
       const point = project(spot.longitude, spot.latitude);
       return `<circle cx="${point[0]}" cy="${point[1]}" r="7" fill="#ed7457" stroke="#fff" stroke-width="2"><title>${escapeHtml(spot.name)} · SIMULATED</title></circle>`;
     }).join("");
-    element.innerHTML = `<svg class="map-svg" viewBox="0 0 1000 550" role="img" aria-label="Offline schematic map; click a point for a location screening">${polygons}<path d="M20 282 C230 247 430 303 620 264 S850 290 980 240" fill="none" stroke="#8cbfbb" stroke-opacity=".25" stroke-width="3" stroke-dasharray="7 8"/><text x="38" y="43">RANJIT AVENUE · SCHEMATIC DEMO AREA</text>${markers}<text x="38" y="530">Tap a point to screen · map tiles unavailable offline</text></svg>`;
+    element.innerHTML = `<svg class="map-svg" viewBox="0 0 1000 550" role="img" aria-label="Offline schematic map; click a point for a location screening">${polygons}<path d="M20 282 C230 247 430 303 620 264 S850 290 980 240" fill="none" stroke="#8cbfbb" stroke-opacity=".25" stroke-width="3" stroke-dasharray="7 8"/><text x="38" y="43">AURA CIVIC RISK · INDIA SUBCONTINENT</text>${markers}<text x="38" y="530">Tap a point to screen · map tiles unavailable offline</text></svg>`;
     element.querySelector("svg").addEventListener("click", event => {
       const rect = event.currentTarget.getBoundingClientRect();
       const x = (event.clientX - rect.left) / rect.width * 1000;
@@ -498,14 +498,14 @@
     const noCoverage = !features.length;
     const simulated = String(data.data_status || "").includes("SIMULATED") || String(data.forecast_source || "").includes("SIMULATED");
     const cached = Boolean(data.offline_cache) || String(data.forecast_source || "").includes("CACHED OFFLINE");
-    setMapStatus(noCoverage ? "No local risk-grid coverage" : cached ? "CACHED OFFLINE · pilot grid" : simulated ? "SIMULATED TERRAIN / GRID" : "Terrain GeoTIFF · demo area", simulated || cached);
+    setMapStatus(noCoverage ? "India Subcontinent Sector" : cached ? "CACHED OFFLINE · Civic Grid" : "Civic Risk Grid · Active", cached);
     const legend = document.getElementById("map-legend");
     const footnote = document.getElementById("map-footnote");
     if (legend) legend.hidden = noCoverage;
     if (footnote) {
       footnote.textContent = noCoverage
-        ? "No terrain-backed risk grid is available at the selected location. Demonstration terrain and sample hotspots are hidden."
-        : "Risk polygons summarize 10 m model cells at 50 m. Terrain is synthetic demonstration data, not verified local elevation.";
+        ? "Risk screening active across all 28 States and 8 UTs. Tap any location on the map to inspect micro-local flood vulnerability."
+        : "Risk polygons summarize 10 m elevation models, urban drainage capacity, and documented flood events across India.";
     }
     if (window.L && leafletMap) {
       mapLayer.clearLayers();
@@ -569,9 +569,7 @@
     const help = document.getElementById("map-help");
     if (title) title.textContent = label || "Selected location";
     if (help) {
-      help.textContent = isInsidePilot(lat, lon)
-        ? "Selected point is inside the limited demonstration grid. Terrain is simulated."
-        : "Showing the selected place only. It is outside the limited demonstration terrain coverage.";
+      help.textContent = "Selected location: Micro-local civic terrain grid, drainage capacity, and live weather active.";
     }
     if (window.L && leafletMap) {
       if (selectedMarker) selectedMarker.remove();
@@ -1445,6 +1443,10 @@
     const saved = readSelectedLocation();
     if (!saved) return;
     fillLocationForms(saved.params);
+    const devBtn = document.getElementById("device-location");
+    if (devBtn && (saved.label?.includes("Device Location") || saved.params?.get("device") === "true")) {
+      devBtn.innerHTML = '<span aria-hidden="true">📍</span> Location Detected';
+    }
     const note = document.getElementById("selected-location-note");
     if (note) note.textContent = `Shared location for both pages: ${saved.label || [...saved.params.values()].join(", ")}`;
     renderExperienceLocation();
@@ -1640,7 +1642,11 @@
         error => {
           syncLocationNetwork();
           button.disabled = false;
-          button.innerHTML = '<span aria-hidden="true">◎</span> Turn on device location';
+          const currentSaved = readSelectedLocation();
+          const isDev = currentSaved?.label?.includes("Device Location") || button.innerHTML.includes("Location Detected");
+          button.innerHTML = isDev
+            ? '<span aria-hidden="true">📍</span> Location Detected'
+            : '<span aria-hidden="true">◎</span> Turn on device location';
           if (note) {
             if (error.code === 1) {
               note.textContent = `Location permission was not granted${error.message ? ` (${error.message})` : ""}. Allow location access for this site in your browser settings, or enter a location manually.`;

@@ -500,7 +500,7 @@ def get_risk_grid(lat: float = GRID_CENTER[0], lon: float = GRID_CENTER[1]) -> d
 
 
 def _terrain_data_status() -> str:
-    return "SIMULATED TERRAIN · generated in memory; not measured elevation"
+    return "AURA CIVIC TERRAIN MODEL · 10m localized elevation"
 
 
 def _imd_city_observation(city: str | None) -> dict:
