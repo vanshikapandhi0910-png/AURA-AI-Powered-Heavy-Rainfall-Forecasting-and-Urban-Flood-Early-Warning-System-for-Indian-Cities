@@ -587,12 +587,26 @@ def _imd_city_observation(city: str | None) -> dict:
 
 
 def _nearest_city_name(lat: float, lon: float) -> str | None:
-    nearest = min(
-        CITY_CENTERS.items(),
+    # Build complete dictionary of all major Indian cities from CITY_CENTERS and INDIA_FLOOD_DATABASE
+    all_targets: dict[str, tuple[float, float]] = {k.lower(): v for k, v in CITY_CENTERS.items()}
+    try:
+        from backend.india_dataset import INDIA_FLOOD_DATABASE
+        for item in INDIA_FLOOD_DATABASE:
+            c_name = item.get("city", "").strip().lower()
+            if c_name and c_name not in all_targets:
+                all_targets[c_name] = (float(item["latitude"]), float(item["longitude"]))
+    except Exception:
+        pass
+
+    if not all_targets:
+        return None
+
+    nearest_city, coords = min(
+        all_targets.items(),
         key=lambda item: (item[1][0] - lat) ** 2 + (item[1][1] - lon) ** 2,
     )
-    distance_squared = (nearest[1][0] - lat) ** 2 + (nearest[1][1] - lon) ** 2
-    return nearest[0].title() if distance_squared <= 0.4**2 else None
+    dist_sq = (coords[0] - lat) ** 2 + (coords[1] - lon) ** 2
+    return nearest_city.title() if dist_sq <= 0.65**2 else None
 
 
 def get_rainfall(lat: float, lon: float, city: str | None = None) -> dict:
@@ -639,10 +653,11 @@ def get_hotspots() -> dict:
     }
 
 
-def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str, bool]:
+def _resolve_coordinates(lat, lon, state, city, area, is_device: bool = False) -> tuple[float, float, str, bool]:
     if lat is not None and lon is not None:
         if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError("Enter valid latitude and longitude coordinates.")
+        suffix = " · Device Location" if is_device else " · Inspected Location"
         if area or city:
             raw = [area, (city or "").title(), (state or "").title()]
             seen: set[str] = set()
@@ -653,11 +668,12 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
                     if key not in seen:
                         seen.add(key)
                         parts.append(p.strip())
-            return lat, lon, f"{', '.join(parts)} ({lat:.4f}°N, {lon:.4f}°E) · Device Location", False
+            return lat, lon, f"{', '.join(parts)} ({lat:.4f}°N, {lon:.4f}°E){suffix}", False
         city_nearby = _nearest_city_name(lat, lon)
         if city_nearby:
-            return lat, lon, f"{city_nearby} ({lat:.4f}°N, {lon:.4f}°E) · Device Location", False
-        return lat, lon, f"Device Location ({lat:.4f}°N, {lon:.4f}°E)", False
+            return lat, lon, f"{city_nearby} ({lat:.4f}°N, {lon:.4f}°E){suffix}", False
+        default_label = f"Device Location ({lat:.4f}°N, {lon:.4f}°E)" if is_device else f"Inspected Coordinates ({lat:.4f}°N, {lon:.4f}°E)"
+        return lat, lon, default_label, False
     if (lat is None) != (lon is None):
         raise ValueError("Latitude and longitude must be supplied together.")
     
@@ -736,8 +752,8 @@ def _resolve_coordinates(lat, lon, state, city, area) -> tuple[float, float, str
     raise ValueError("Choose device location or enter a city or state.")
 
 
-def resolve_location(lat, lon, state, city, area) -> dict:
-    point_lat, point_lon, label, approximate = _resolve_coordinates(lat, lon, state, city, area)
+def resolve_location(lat, lon, state, city, area, is_device: bool = False) -> dict:
+    point_lat, point_lon, label, approximate = _resolve_coordinates(lat, lon, state, city, area, is_device=is_device)
     area_key = (area or "").strip().lower()
     area_geocoded = area_key in AREA_CENTERS
     if area and area_geocoded and area_key in AREA_CITIES:
@@ -768,7 +784,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
                 break
 
     is_state_level = not city and bool(state)
-    is_device = lat is not None and lon is not None
+    is_device_flag = is_device or (lat is not None and lon is not None and "Device Location" in label)
 
     return {
         "lat": point_lat,
@@ -780,7 +796,7 @@ def resolve_location(lat, lon, state, city, area) -> dict:
         "label": label,
         "approximate": approximate,
         "is_state_level": is_state_level,
-        "is_device_location": is_device,
+        "is_device_location": is_device_flag,
     }
 
 

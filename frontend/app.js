@@ -1345,11 +1345,12 @@
   }
 
 
-  async function showPointAlert(lat, lon, source = "Map-selected coordinates", city = "", state = "", area = "", shouldInspect = false) {
+  async function showPointAlert(lat, lon, source = "Map-selected coordinates", city = "", state = "", area = "", shouldInspect = false, isDevice = false) {
     const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
     if (city) params.set("city", city);
     if (state) params.set("state", state);
     if (area) params.set("area", area);
+    if (isDevice) params.set("device", "true");
     setActiveSearch(true);
     saveSelectedLocation(params, source);
     if (shouldInspect && window.AURA_WINDY_ENGINE?.inspectPoint) {
@@ -1563,41 +1564,57 @@
         return;
       }
       button.disabled = true;
-      button.textContent = "Finding your location…";
-      navigator.geolocation.getCurrentPosition(
-        async position => {
-          syncLocationNetwork();
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          const accuracy = Math.round(position.coords.accuracy);
-          button.textContent = "Detecting locality…";
+      button.innerHTML = '<span aria-hidden="true">🛰️</span> Acquiring GPS satellite fix…';
 
-          let placeName = `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`;
-          let detectedCity = "";
-          let detectedState = "";
-          let detectedArea = "";
+      const highAccuracyOptions = {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0 // Do NOT accept stale cached position! Force real-time hardware GPS
+      };
 
+      const fallbackOptions = {
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 0
+      };
+
+      const handleSuccess = async position => {
+        syncLocationNetwork();
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const accuracy = Math.round(position.coords.accuracy || 0);
+        button.innerHTML = '<span aria-hidden="true">📍</span> Detecting address…';
+
+        let detectedCity = "";
+        let detectedState = "";
+        let detectedArea = "";
+
+        try {
+          let gotDetailed = false;
+          // 1. OpenStreetMap Nominatim with zoom=18 and 5s timeout
           try {
-            let gotDetailed = false;
-            // 1. Try OpenStreetMap Nominatim for exact neighbourhood/suburb
-            try {
-              const nomRes = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-                { signal: AbortSignal.timeout(2800), headers: { "Accept": "application/json" } }
-              );
-              if (nomRes.ok) {
-                const nom = await nomRes.json();
-                const addr = nom.address || {};
-                detectedArea = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.quarter || addr.subdistrict || "";
-                detectedCity = addr.city || addr.town || addr.municipality || addr.county || "";
-                detectedState = addr.state || "";
-                gotDetailed = Boolean(detectedCity || detectedArea);
-              }
-            } catch (_) {}
+            const nomRes = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+              { signal: AbortSignal.timeout(5000), headers: { "Accept": "application/json" } }
+            );
+            if (nomRes.ok) {
+              const nom = await nomRes.json();
+              const addr = nom.address || {};
+              // Capture street level AND colony/suburb level
+              const street = addr.road || addr.street || addr.pedestrian || addr.suburb_street || "";
+              const neighbourhood = addr.neighbourhood || addr.suburb || addr.residential || addr.quarter || addr.subdistrict || addr.hamlet || "";
+              const areaParts = [street, neighbourhood].filter(Boolean);
+              detectedArea = [...new Set(areaParts)].join(", ");
+              detectedCity = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || "";
+              detectedState = addr.state || "";
+              gotDetailed = Boolean(detectedCity || detectedArea);
+            }
+          } catch (_) {}
 
-            // 2. Fallback to BigDataCloud reverse geocode
-            if (!gotDetailed) {
-              const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { signal: AbortSignal.timeout(3000) });
+          // 2. BigDataCloud reverse geocode fallback
+          if (!gotDetailed) {
+            try {
+              const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { signal: AbortSignal.timeout(4000) });
               if (r.ok) {
                 const geo = await r.json();
                 const subLocale = geo.locality || geo.subLocality || geo.neighbourhood || "";
@@ -1609,23 +1626,22 @@
                   .sort((a, b) => (b.order || 0) - (a.order || 0))[0];
                 detectedArea = (finest?.name) || (subLocale !== detectedCity ? subLocale : "") || "";
               }
-            }
+            } catch (_) {}
+          }
 
-            // Deduplicate label parts and append precise coordinates
-            const rawParts = [detectedArea, detectedCity, detectedState].filter(Boolean);
-            const seen = new Set();
-            const labelParts = rawParts.filter(p => {
-              const k = p.trim().toLowerCase();
-              if (seen.has(k)) return false;
-              seen.add(k);
-              return true;
-            });
-            if (labelParts.length) {
-              placeName = `${labelParts.join(", ")} (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E) · Device Location`;
-            } else {
-              placeName = `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`;
-            }
-          } catch (_) {}
+          // Build clean location title with coordinates
+          const rawParts = [detectedArea, detectedCity, detectedState].filter(Boolean);
+          const seen = new Set();
+          const labelParts = rawParts.filter(p => {
+            const k = p.trim().toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+          const accSuffix = accuracy > 0 ? ` (±${accuracy}m)` : "";
+          const placeName = labelParts.length
+            ? `${labelParts.join(", ")} (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E${accSuffix}) · Device Location`
+            : `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E${accSuffix})`;
 
           button.disabled = false;
           button.innerHTML = '<span aria-hidden="true">📍</span> Location Detected';
@@ -1636,10 +1652,26 @@
             detectedCity,
             detectedState,
             detectedArea,
-            false
+            false,
+            true // isDevice = true
           );
-        },
-        error => {
+        } catch (_) {
+          button.disabled = false;
+          button.innerHTML = '<span aria-hidden="true">📍</span> Location Detected';
+          showPointAlert(
+            lat,
+            lon,
+            `Device Location (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E) · Device Location`,
+            "",
+            "",
+            "",
+            false,
+            true
+          );
+        }
+      };
+
+      const handleError = error => {
           syncLocationNetwork();
           button.disabled = false;
           const currentSaved = readSelectedLocation();
