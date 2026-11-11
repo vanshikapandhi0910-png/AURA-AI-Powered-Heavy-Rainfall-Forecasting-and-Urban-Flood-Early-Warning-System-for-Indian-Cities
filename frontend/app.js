@@ -1688,8 +1688,16 @@
               note.textContent = `The browser could not determine your position${error.message ? ` (${error.message})` : ""}. Check Location Services or enter a location manually.`;
             }
           }
+        };
+
+      // Two-stage GPS: Try high-accuracy hardware GPS first, fall back to network if it times out
+      navigator.geolocation.getCurrentPosition(
+        handleSuccess,
+        err => {
+          console.warn("High-accuracy GPS timed out, trying standard:", err);
+          navigator.geolocation.getCurrentPosition(handleSuccess, handleError, fallbackOptions);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        highAccuracyOptions
       );
     });
   }
